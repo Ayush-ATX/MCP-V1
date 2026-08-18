@@ -1,0 +1,265 @@
+{
+  "demo_run_at": "2026-08-18T11:40:36.385082+00:00",
+  "staging_url": "http://20.40.56.211:8000",
+  "total_questions": 15,
+  "successful": 13,
+  "avg_latency_seconds": 12.18,
+  "avg_grounding_pct": 0.59,
+  "question_results": [
+    {
+      "question": "What is the primary purpose of the Maharashtra Regional and Town Planning Act, 1966?",
+      "ok": true,
+      "message_id": "06687254-c061-45f0-9c1c-134ed674aad9",
+      "intent": "retrieval",
+      "language": "english",
+      "department": "urban",
+      "latency_seconds": 9.127,
+      "total_tokens": 7965,
+      "top_gr": null,
+      "source_count": 2,
+      "grounding": {
+        "coverage_pct": 0.0,
+        "total_sentences": 8,
+        "grounded_count": 0
+      },
+      "error": null
+    },
+    {
+      "question": "Who can file an RTI application",
+      "ok": true,
+      "message_id": "05ec4045-9453-4caf-aa8a-f34b343e7590",
+      "intent": "retrieval",
+      "language": "english",
+      "department": "Urban Development Department",
+      "latency_seconds": 11.241,
+      "total_tokens": 7663,
+      "top_gr": "संकीर्ण-२१०२/३५५८/प्र.क्र.३५६/२००२/नवि-३ (आस्था)",
+      "source_count": 2,
+      "grounding": {
+        "coverage_pct": 0.0,
+        "total_sentences": 7,
+        "grounded_count": 0
+      },
+      "error": null
+    },
+    {
+      "question": "What rules govern development in agricultural zones near functional railway stations?",
+      "ok": true,
+      "message_id": "9f980e5e-5e9a-4150-9048-9c5bc5c9df6a",
+      "intent": "retrieval",
+      "language": "english",
+      "department": "urban",
+      "latency_seconds": 19.536,
+      "total_tokens": 8135,
+      "top_gr": null,
+      "source_count": 7,
+      "grounding": {
+        "coverage_pct": null,
+        "reason": "no_sources_to_ground_against"
+      },
+      "error": null
+    },
+    {
+      "question": "What is the premium rate for changing from an Agricultural or No-Development zone to a 'Commercial' zone?",
+      "ok": true,
+      "message_id": "75815f1b-3bfa-4aeb-803f-c5bcbc6675cb",
+      "intent": "retrieval",
+      "language": "english",
+      "department": "Revenue and Forest Department",
+      "latency_seconds": 13.732,
+      "total_tokens": 7854,
+      "top_gr": "एनएपी-२०२५/प्र.क्र.१७७/जमीन-०१अ",
+      "source_count": 5,
+      "grounding": {
+        "coverage_pct": 0.0,
+        "total_sentences": 13,
+        "grounded_count": 0
+      },
+      "error": null
+    },
+    {
+      "question": "To whom should an application for Zone Change under Section 20(4) of the MRTP Act be submitted?",
+      "ok": true,
+      "message_id": "422b52a6-f6f4-474f-a87e-eb4028645702",
+      "intent": "retrieval",
+      "language": "english",
+      "department": "urban",
+      "latency_seconds": 16.514,
+      "total_tokens": 8418,
+      "top_gr": null,
+      "source_count": 4,
+      "grounding": {
+        "coverage_pct": 0.0,
+        "total_sentences": 8,
+        "grounded_count": 0
+      },
+      "error": null
+    },
+    {
+      "question": "मैंने एक ऑनलाइन आवेदन दायर किया है; मुझे सूचना अधिकारी से कितने दिनों में जानकारी मिल जानी चाहिए?",
+      "ok": true,
+      "message_id": "c78b7fe1-c310-4757-beb4-12d201191241",
+      "intent": "retrieval",
+      "language": "hindi",
+      "department": "legal",
+      "latency_seconds": 8.675,
+      "total_tokens": 8117,
+      "top_gr": null,
+      "source_count": 2,
+      "grounding": {
+        "coverage_pct": 0.0,
+        "total_sentences": 6,
+        "grounded_count": 0
+      },
+      "error": null
+    },
+    {
+      "question": "आरटीआई अधिनियम के तहत तृतीय पक्ष क्या है?",
+      "ok": true,
+      "message_id": "d1831376-eeb7-4101-ac80-963b69f7825b",
+      "intent": "retrieval",
+      "language": "hindi",
+      "department": "legal",
+      "latency_seconds": 8.721,
+      "total_tokens": 8292,
+      "top_gr": null,
+      "source_count": 2,
+      "grounding": {
+        "coverage_pct": 0.0,
+        "total_sentences": 8,
+        "grounded_count": 0
+      },
+      "error": null
+    },
+    {
+      "question": "RTS 2015 अधिनियम कब पारित किया गया था?",
+      "ok": true,
+      "message_id": "b7d23eaa-7933-48a6-9a3b-b07bc644b52f",
+      "intent": "retrieval",
+      "language": "hindi",
+      "department": "Urban Development Department",
+      "latency_seconds": 9.177,
+      "total_tokens": 8525,
+      "top_gr": "संकिर्ण- २०१५/प्र.क्र.३९८/नवि-२०",
+      "source_count": 4,
+      "grounding": {
+        "coverage_pct": 0.0,
+        "total_sentences": 6,
+        "grounded_count": 0
+      },
+      "error": null
+    },
+    {
+      "question": "यदि मुझे प्रथम अपीलीय प्राधिकारी द्वारा दिए गए निर्धारित समय में सार्वजनिक सेवा प्राप्त नहीं होती है, तो क्या होगा?",
+      "ok": true,
+      "message_id": "43e536d7-fa10-48c4-ac4b-17a0bcc5d2a7",
+      "intent": "retrieval",
+      "language": "hindi",
+      "department": "urban",
+      "latency_seconds": 11.308,
+      "total_tokens": 8309,
+      "top_gr": null,
+      "source_count": 3,
+      "grounding": {
+        "coverage_pct": 0.0,
+        "total_sentences": 8,
+        "grounded_count": 0
+      },
+      "error": null
+    },
+    {
+      "question": "महाराष्ट्र में किसी क्षेत्र के लिए संरचना योजना (Structure Plan) तैयार करने के लिए कौन जिम्मेदार है?",
+      "ok": true,
+      "message_id": "4c1a7aa4-7977-4be8-98fd-b22e31da6f14",
+      "intent": "retrieval",
+      "language": "marathi",
+      "department": "planning",
+      "latency_seconds": 9.281,
+      "total_tokens": 7285,
+      "top_gr": null,
+      "source_count": 3,
+      "grounding": {
+        "coverage_pct": 0.0,
+        "total_sentences": 8,
+        "grounded_count": 0
+      },
+      "error": null
+    },
+    {
+      "question": "एमआरटीपी कायद्यात परिभाषित केल्यानुसार, विकास आराखड्यातील 'महत्त्वपूर्ण स्वरूपातील सुधारणा' म्हणजे काय?",
+      "ok": true,
+      "message_id": "7b354a96-5b58-4dc1-b77e-737f3b154e90",
+      "intent": "retrieval",
+      "language": "marathi",
+      "department": "Urban Development Department",
+      "latency_seconds": 13.737,
+      "total_tokens": 7009,
+      "top_gr": "TPB 4394/1407/CR 272/94/UD-12",
+      "source_count": 3,
+      "grounding": {
+        "coverage_pct": 0.0,
+        "total_sentences": 8,
+        "grounded_count": 0
+      },
+      "error": null
+    },
+    {
+      "question": "विकास आराखड्यात राखीव ठेवलेला खेळाचा मैदान कोणत्या परिस्थितीत इतर कामांसाठी तात्पुरते वापरले जाऊ शकते?",
+      "ok": true,
+      "message_id": "1cac2168-7b44-4d1a-bd00-3ff295d4d494",
+      "intent": "retrieval",
+      "language": "marathi",
+      "department": "urban",
+      "latency_seconds": 9.234,
+      "total_tokens": 7383,
+      "top_gr": null,
+      "source_count": 4,
+      "grounding": {
+        "coverage_pct": 0.0,
+        "total_sentences": 12,
+        "grounded_count": 0
+      },
+      "error": null
+    },
+    {
+      "question": "स्वच्छ भारत मिशन-शहरी म्हणजे काय आणि ते शहरांमधील कचरा आणि टाकाऊ पदार्थ कसा साफ करते?",
+      "ok": false,
+      "error": "Server disconnected without sending a response."
+    },
+    {
+      "question": "अमृत २.० माझ्या घराला स्वच्छ पाणी मिळवून देण्यात कशी मदत करेल आणि कोणत्या क्षेत्रांना प्राधान्य दिले जात आहे?",
+      "ok": false,
+      "error": "Server disconnected without sending a response."
+    },
+    {
+      "question": "जर कोणी बेकायदेशीरपणे झाड तोडले किंवा या कायद्याच्या नियमांचे उल्लंघन केले तर काय होईल?",
+      "ok": true,
+      "message_id": "62bb7340-2fd4-4c50-841b-ffad7b58b3d2",
+      "intent": "retrieval",
+      "language": "marathi",
+      "department": "legal",
+      "latency_seconds": 18.028,
+      "total_tokens": 7784,
+      "top_gr": null,
+      "source_count": 4,
+      "grounding": {
+        "coverage_pct": 7.14,
+        "total_sentences": 14,
+        "grounded_count": 1
+      },
+      "error": null
+    }
+  ],
+  "stability_results": [
+    {
+      "ok": false,
+      "error": "Paraphrase generation failed: 404 models/gemini-1.5-flash is not found for API version v1beta, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+      "http_status": null
+    },
+    {
+      "ok": false,
+      "error": "Paraphrase generation failed: 404 models/gemini-1.5-flash is not found for API version v1beta, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+      "http_status": null
+    }
+  ]
+}

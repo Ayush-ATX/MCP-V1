@@ -1,0 +1,66 @@
+MahaSamvaad MCP Suite -- E2E Demo Results
+Run at: 2026-08-18T11:40:36.385082+00:00
+
+[01] What is the primary purpose of the Maharashtra Regional and Town Planning Act, 1
+     ok=True intent=retrieval dept=urban lat=9.127s grounding=0.0%
+     top_gr=None message_id=06687254-c061-45f0-9c1c-134ed674aad9
+
+[02] Who can file an RTI application
+     ok=True intent=retrieval dept=Urban Development Department lat=11.241s grounding=0.0%
+     top_gr=संकीर्ण-२१०२/३५५८/प्र.क्र.३५६/२००२/नवि-३ (आस्था) message_id=05ec4045-9453-4caf-aa8a-f34b343e7590
+
+[03] What rules govern development in agricultural zones near functional railway stat
+     ok=True intent=retrieval dept=urban lat=19.536s grounding=None%
+     top_gr=None message_id=9f980e5e-5e9a-4150-9048-9c5bc5c9df6a
+
+[04] What is the premium rate for changing from an Agricultural or No-Development zon
+     ok=True intent=retrieval dept=Revenue and Forest Department lat=13.732s grounding=0.0%
+     top_gr=एनएपी-२०२५/प्र.क्र.१७७/जमीन-०१अ message_id=75815f1b-3bfa-4aeb-803f-c5bcbc6675cb
+
+[05] To whom should an application for Zone Change under Section 20(4) of the MRTP Ac
+     ok=True intent=retrieval dept=urban lat=16.514s grounding=0.0%
+     top_gr=None message_id=422b52a6-f6f4-474f-a87e-eb4028645702
+
+[06] मैंने एक ऑनलाइन आवेदन दायर किया है; मुझे सूचना अधिकारी से कितने दिनों में जानकार
+     ok=True intent=retrieval dept=legal lat=8.675s grounding=0.0%
+     top_gr=None message_id=c78b7fe1-c310-4757-beb4-12d201191241
+
+[07] आरटीआई अधिनियम के तहत तृतीय पक्ष क्या है?
+     ok=True intent=retrieval dept=legal lat=8.721s grounding=0.0%
+     top_gr=None message_id=d1831376-eeb7-4101-ac80-963b69f7825b
+
+[08] RTS 2015 अधिनियम कब पारित किया गया था?
+     ok=True intent=retrieval dept=Urban Development Department lat=9.177s grounding=0.0%
+     top_gr=संकिर्ण- २०१५/प्र.क्र.३९८/नवि-२० message_id=b7d23eaa-7933-48a6-9a3b-b07bc644b52f
+
+[09] यदि मुझे प्रथम अपीलीय प्राधिकारी द्वारा दिए गए निर्धारित समय में सार्वजनिक सेवा 
+     ok=True intent=retrieval dept=urban lat=11.308s grounding=0.0%
+     top_gr=None message_id=43e536d7-fa10-48c4-ac4b-17a0bcc5d2a7
+
+[10] महाराष्ट्र में किसी क्षेत्र के लिए संरचना योजना (Structure Plan) तैयार करने के ल
+     ok=True intent=retrieval dept=planning lat=9.281s grounding=0.0%
+     top_gr=None message_id=4c1a7aa4-7977-4be8-98fd-b22e31da6f14
+
+[11] एमआरटीपी कायद्यात परिभाषित केल्यानुसार, विकास आराखड्यातील 'महत्त्वपूर्ण स्वरूपात
+     ok=True intent=retrieval dept=Urban Development Department lat=13.737s grounding=0.0%
+     top_gr=TPB 4394/1407/CR 272/94/UD-12 message_id=7b354a96-5b58-4dc1-b77e-737f3b154e90
+
+[12] विकास आराखड्यात राखीव ठेवलेला खेळाचा मैदान कोणत्या परिस्थितीत इतर कामांसाठी तात्
+     ok=True intent=retrieval dept=urban lat=9.234s grounding=0.0%
+     top_gr=None message_id=1cac2168-7b44-4d1a-bd00-3ff295d4d494
+
+[13] स्वच्छ भारत मिशन-शहरी म्हणजे काय आणि ते शहरांमधील कचरा आणि टाकाऊ पदार्थ कसा साफ 
+     ok=False intent=None dept=None lat=N/As grounding=None%
+     top_gr=None message_id=None
+
+[14] अमृत २.० माझ्या घराला स्वच्छ पाणी मिळवून देण्यात कशी मदत करेल आणि कोणत्या क्षेत्
+     ok=False intent=None dept=None lat=N/As grounding=None%
+     top_gr=None message_id=None
+
+[15] जर कोणी बेकायदेशीरपणे झाड तोडले किंवा या कायद्याच्या नियमांचे उल्लंघन केले तर का
+     ok=True intent=retrieval dept=legal lat=18.028s grounding=7.14%
+     top_gr=None message_id=62bb7340-2fd4-4c50-841b-ffad7b58b3d2
+
+
+Stability Tests
+======================================================================

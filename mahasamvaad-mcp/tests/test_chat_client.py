@@ -210,6 +210,51 @@ async def test_malformed_json_returns_ok_false():
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "body",
+    [
+        [],
+        {"response": "hello", "metadata": "invalid"},
+        {"response": "hello", "metadata": {"tokens": "invalid"}},
+        {"response": "hello", "metadata": {"sources": {"citation_id": "c1"}}},
+        {"response": "hello", "metadata": {"web_sources": {"ref": "w1"}}},
+        {"response": "hello", "last_turn_filepaths": "not-a-list"},
+    ],
+)
+async def test_invalid_response_structure_returns_ok_false(body):
+    """A 200 response with an unexpected JSON shape must not cross the MCP boundary."""
+    async def handler(url, **kw):
+        return httpx.Response(200, json=body)
+
+    MockClient = _make_mock_client_class(handler)
+    with patch("mcp_common.chat_client.httpx.AsyncClient", MockClient):
+        result = await call_chat("test")
+
+    assert result.ok is False
+    assert result.http_status == 200
+    assert result.error is not None
+
+
+@pytest.mark.asyncio
+async def test_read_error_returns_ok_false_after_retry():
+    """ReadError is a normal transport failure and must follow the network retry path."""
+    call_count = [0]
+
+    async def handler(url, **kw):
+        call_count[0] += 1
+        raise httpx.ReadError("connection reset", request=httpx.Request("POST", url))
+
+    MockClient = _make_mock_client_class(handler)
+    with patch("mcp_common.chat_client.httpx.AsyncClient", MockClient), \
+         patch("mcp_common.chat_client._RETRY_BACKOFF_S", 0.0):
+        result = await call_chat("test")
+
+    assert result.ok is False
+    assert result.http_status == -1
+    assert call_count[0] == 2  # original + 1 retry
+
+
+@pytest.mark.asyncio
 async def test_uuid_generated_per_call():
     """Each call generates distinct user_message_id values."""
     ids_seen: list[str] = []

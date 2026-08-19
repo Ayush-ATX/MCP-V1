@@ -106,7 +106,7 @@ async def query_and_log(
                 (
                     called_at,
                     user_id or config.MCP_DEFAULT_USER_ID,
-                    chatroom_id,
+                    result.chatroom_id,
                     result.user_message_id,
                     result.message_id,
                     message,

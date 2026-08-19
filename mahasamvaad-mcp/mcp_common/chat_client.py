@@ -31,6 +31,7 @@ class ChatResult:
     # Success fields
     message_id: str | None = None
     user_message_id: str | None = None
+    chatroom_id: str | None = None
     response: str | None = None
     intent: str | None = None
     language: str | None = None
@@ -92,7 +93,7 @@ async def call_chat(
 
     last_error: str | None = None
     last_status: int | None = None
-    raw_body: dict | None = None
+    raw_body: Any | None = None
 
     for attempt in range(2):  # 1 retry on 5xx / connection error
         try:
@@ -109,10 +110,11 @@ async def call_chat(
                         ok=False,
                         user_message_id=generated_user_msg_id,
                         message_id=generated_msg_id,
+                        chatroom_id=effective_chatroom_id,
                         error=last_error,
                         http_status=200,
                     )
-                return _parse_success(raw_body, generated_user_msg_id, generated_msg_id)
+                return _parse_success(raw_body, generated_user_msg_id, generated_msg_id, effective_chatroom_id)
 
             # 4xx — do not retry
             if 400 <= resp.status_code < 500:
@@ -122,6 +124,7 @@ async def call_chat(
                     ok=False,
                     user_message_id=generated_user_msg_id,
                     message_id=generated_msg_id,
+                    chatroom_id=effective_chatroom_id,
                     error=last_error,
                     http_status=resp.status_code,
                 )
@@ -130,7 +133,7 @@ async def call_chat(
             last_error = f"HTTP {resp.status_code}: {resp.text[:500]}"
             logger.warning("call_chat: 5xx response (%d) attempt %d", resp.status_code, attempt + 1)
 
-        except (httpx.ConnectError, httpx.ReadTimeout, httpx.ConnectTimeout) as exc:
+        except httpx.RequestError as exc:
             last_error = f"Connection/timeout error: {exc}"
             last_status = -1
             logger.warning("call_chat: connection error attempt %d — %s", attempt + 1, exc)
@@ -143,17 +146,51 @@ async def call_chat(
         ok=False,
         user_message_id=generated_user_msg_id,
         message_id=generated_msg_id,
+        chatroom_id=effective_chatroom_id,
         error=last_error,
         http_status=last_status,
     )
 
 
-def _parse_success(body: dict, user_message_id: str, fallback_msg_id: str) -> ChatResult:
+def _parse_success(
+    body: Any,
+    user_message_id: str,
+    fallback_msg_id: str,
+    chatroom_id: str,
+) -> ChatResult:
     """Parse a successful 200 response body into a ChatResult."""
-    metadata: dict = body.get("metadata", {}) or {}
-    tokens: dict = metadata.get("tokens", {}) or {}
-    sources: list = metadata.get("sources", []) or []
-    web_sources: list = metadata.get("web_sources", []) or []
+    if not isinstance(body, dict):
+        return _malformed_response(user_message_id, fallback_msg_id, chatroom_id, "top-level JSON must be an object")
+
+    metadata = body.get("metadata", {})
+    if metadata is None:
+        metadata = {}
+    if not isinstance(metadata, dict):
+        return _malformed_response(user_message_id, fallback_msg_id, chatroom_id, "metadata must be an object")
+
+    tokens = metadata.get("tokens", {})
+    if tokens is None:
+        tokens = {}
+    if not isinstance(tokens, dict):
+        return _malformed_response(user_message_id, fallback_msg_id, chatroom_id, "metadata.tokens must be an object")
+
+    sources = metadata.get("sources", [])
+    if sources is None:
+        sources = []
+    if not isinstance(sources, list) or not all(isinstance(source, dict) for source in sources):
+        return _malformed_response(user_message_id, fallback_msg_id, chatroom_id, "metadata.sources must be an array of objects")
+
+    web_sources = metadata.get("web_sources", [])
+    if web_sources is None:
+        web_sources = []
+    if not isinstance(web_sources, list) or not all(isinstance(source, dict) for source in web_sources):
+        return _malformed_response(user_message_id, fallback_msg_id, chatroom_id, "metadata.web_sources must be an array of objects")
+
+    last_turn_filepaths = body.get("last_turn_filepaths", [])
+    if last_turn_filepaths is None:
+        last_turn_filepaths = []
+    if not isinstance(last_turn_filepaths, list) or not all(isinstance(filepath, str) for filepath in last_turn_filepaths):
+        return _malformed_response(user_message_id, fallback_msg_id, chatroom_id, "last_turn_filepaths must be an array of strings")
 
     server_msg_id = metadata.get("message_id") or fallback_msg_id
 
@@ -161,8 +198,9 @@ def _parse_success(body: dict, user_message_id: str, fallback_msg_id: str) -> Ch
         ok=True,
         user_message_id=user_message_id,
         message_id=server_msg_id,
+        chatroom_id=chatroom_id,
         response=body.get("response", ""),
-        last_turn_filepaths=body.get("last_turn_filepaths", []) or [],
+        last_turn_filepaths=last_turn_filepaths,
         intent=metadata.get("intent"),
         language=metadata.get("language"),
         route_hint=metadata.get("route_hint"),
@@ -175,5 +213,19 @@ def _parse_success(body: dict, user_message_id: str, fallback_msg_id: str) -> Ch
         langfuse_trace_id=metadata.get("langfuse_trace_id"),
         model=metadata.get("model"),
         raw_response=body,
+        http_status=200,
+    )
+
+
+def _malformed_response(user_message_id: str, message_id: str, chatroom_id: str, detail: str) -> ChatResult:
+    """Return the standard structured failure for a malformed 200 response."""
+    error = f"Malformed response: {detail}"
+    logger.error("call_chat: %s", error)
+    return ChatResult(
+        ok=False,
+        user_message_id=user_message_id,
+        message_id=message_id,
+        chatroom_id=chatroom_id,
+        error=error,
         http_status=200,
     )

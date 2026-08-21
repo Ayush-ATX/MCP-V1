@@ -1,0 +1,50 @@
+# Python virtual environments
+venv311/
+.venv/
+venv/
+envs/
+
+# Python caches and compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment and local configuration
+.env
+.env.*
+!.env.example
+
+# Test, coverage, and type-checker output
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.mypy_cache/
+.pyre/
+.ruff_cache/
+
+# Build and packaging output
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Local databases and generated data
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
+
+# IDE and operating-system files
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+.DS_Store
+Thumbs.db

@@ -11,5 +11,4 @@ collect_ignore = [
     # Excluded here because they import `test_reformulation_stability` from
     # server_reformulation.main, which pytest mistakenly collects as a fixture.
     "tests/test_stability_e2e.py",
-    "tests/test_nvidia_nim.py",
 ]

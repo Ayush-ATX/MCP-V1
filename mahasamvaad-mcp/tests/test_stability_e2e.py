@@ -1,10 +1,10 @@
-"""Focused stability test: generate paraphrases via NVIDIA NIM + fire at /chat.
+"""Focused stability test: generate paraphrases with the reformulation model + fire at /chat.
 
 Run:
     python tests/test_stability_e2e.py
 
 Requires:
-    NVIDIA_API_KEY  env var
+    REFORMULATION_API_KEY  env var
     STORE_DB_PATH   env var (defaults ./data/store.db)
     Staging must be reachable at MAHASAMVAAD_BASE_URL
 """
@@ -20,7 +20,7 @@ from server_reformulation.main import test_reformulation_stability
 async def main():
     query = "What is the primary purpose of the Maharashtra Regional and Town Planning Act, 1966?"
     print(f"Testing stability for: {query[:70]}")
-    print("Generating paraphrases via NVIDIA NIM (may take 2-3 min)...")
+    print("Generating paraphrases with the reformulation model...")
 
     result = await test_reformulation_stability(query, web_search=True)
 

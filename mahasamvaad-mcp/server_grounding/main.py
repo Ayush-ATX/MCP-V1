@@ -343,7 +343,7 @@ def main() -> None:
     args = _parse_args()
     if args.transport == "streamable-http":
         logger.info("Starting grounding server on %s:%d (streamable-http)", args.host, args.port)
-        mcp.run_streamable_http_async(host=args.host, port=args.port)
+        mcp.run(transport="streamable-http", host=args.host, port=args.port)
     else:
         logger.info("Starting grounding server on stdio")
         mcp.run_stdio_async()

@@ -64,10 +64,9 @@ Copy `.env.example` to `.env` and adjust:
 | `GROUNDING_METHOD` | `difflib_v1` | `difflib_v1` \| `embedding_v2` (stretch) |
 | `GROUNDING_THRESHOLD` | `0.55` | Minimum difflib ratio to count a sentence as grounded |
 | `LOG_LEVEL` | `INFO` | Python logging level (all servers log to **stderr** only) |
-| `NVIDIA_API_KEY` | *(required for Server 3)* | NVIDIA NIM bearer token for paraphrase generation |
-| `NVIDIA_MODEL` | `google/gemma-4-31b-it` | NIM model; override with any OpenAI-compatible NVIDIA model |
-| `NVIDIA_BASE_URL` | `https://integrate.api.nvidia.com/v1` | NIM API base URL |
-| `NVIDIA_LLM_TIMEOUT_S` | `300.0` | Per-call timeout for NIM (large models can take 2-3 min) |
+| `REFORMULATION_API_KEY` | *(required for Server 3)* | API key for the reformulation model |
+| `REFORMULATION_MODEL` | `nvidia/nemotron-3.5-lightning-30b-a3b` | Reformulation model identifier |
+| `REFORMULATION_BASE_URL` | `https://integrate.api.nvidia.com/v1` | OpenAI-compatible model API base URL |
 | `MCP_TRANSPORT` | `stdio` | `stdio` \| `streamable-http` |
 | `MCP_HTTP_HOST` | `127.0.0.1` | Bind address for streamable-http (localhost only — §11) |
 | `MCP_HTTP_PORT` | `8001` | Port for streamable-http |
@@ -80,7 +79,6 @@ Copy `.env.example` to `.env` and adjust:
 
 ```powershell
 # Server 1 — Observability
-$env:NVIDIA_API_KEY="nvapi-..."
 $env:STORE_DB_PATH="./data/store.db"
 ..\venv311\Scripts\python server_observability\main.py
 
@@ -88,6 +86,7 @@ $env:STORE_DB_PATH="./data/store.db"
 ..\venv311\Scripts\python server_grounding\main.py
 
 # Server 3 — Reformulation
+$env:REFORMULATION_API_KEY="..."
 ..\venv311\Scripts\python server_reformulation\main.py
 ```
 
@@ -144,8 +143,8 @@ $env:STORE_DB_PATH="./data/store.db"
 # Phase 5 concurrent-write test
 ..\venv311\Scripts\pytest tests\test_concurrent_writes.py -v
 
-# 2. E2E demo (staging + NVIDIA_API_KEY required)
-$env:NVIDIA_API_KEY="nvapi-..."
+# 2. E2E demo (staging + REFORMULATION_API_KEY required)
+$env:REFORMULATION_API_KEY="..."
 $env:STORE_DB_PATH="./data/store.db"
 ..\venv311\Scripts\python tests\run_e2e_demo.py
 ```

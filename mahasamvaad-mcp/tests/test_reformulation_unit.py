@@ -11,6 +11,7 @@ import json
 import sys
 import os
 import tempfile
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -18,6 +19,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import pytest
 
 from server_reformulation.main import (
+    _stream_reformulation_response,
     generate_paraphrases,
     test_reformulation_stability as stability_tool,
 )
@@ -43,10 +45,11 @@ MOCK_VARIANTS_WITH_FENCE = f"```json\n{MOCK_VARIANTS_JSON}\n```"
 @pytest.mark.asyncio
 async def test_generate_paraphrases_valid_json():
     """LLM returns valid JSON array → ok=True with clean variants."""
-    with patch("server_reformulation.main._call_nvidia_nim", new=AsyncMock(return_value=MOCK_VARIANTS_JSON)):
+    with patch("server_reformulation.main._call_reformulation_model", new=AsyncMock(return_value=MOCK_VARIANTS_JSON)):
         result = await generate_paraphrases("What is the MRTP Act?", n=3)
 
     assert result["ok"] is True
+    assert set(result) == {"ok", "original_query", "variants"}
     assert len(result["variants"]) == 3
     assert result["variants"][0]["kind"] == "formal"
     assert result["original_query"] == "What is the MRTP Act?"
@@ -55,7 +58,7 @@ async def test_generate_paraphrases_valid_json():
 @pytest.mark.asyncio
 async def test_generate_paraphrases_strips_code_fence():
     """LLM wraps output in ```json ... ``` code fence → still parsed correctly."""
-    with patch("server_reformulation.main._call_nvidia_nim", new=AsyncMock(return_value=MOCK_VARIANTS_WITH_FENCE)):
+    with patch("server_reformulation.main._call_reformulation_model", new=AsyncMock(return_value=MOCK_VARIANTS_WITH_FENCE)):
         result = await generate_paraphrases("What is the MRTP Act?", n=3)
 
     assert result["ok"] is True
@@ -65,7 +68,7 @@ async def test_generate_paraphrases_strips_code_fence():
 @pytest.mark.asyncio
 async def test_generate_paraphrases_invalid_json():
     """LLM returns garbage text → ok=False with descriptive error."""
-    with patch("server_reformulation.main._call_nvidia_nim", new=AsyncMock(return_value="Sorry, I cannot help.")):
+    with patch("server_reformulation.main._call_reformulation_model", new=AsyncMock(return_value="Sorry, I cannot help.")):
         result = await generate_paraphrases("What is the MRTP Act?")
 
     assert result["ok"] is False
@@ -75,7 +78,7 @@ async def test_generate_paraphrases_invalid_json():
 @pytest.mark.asyncio
 async def test_generate_paraphrases_non_array_json():
     """LLM returns a JSON object (not array) → ok=False."""
-    with patch("server_reformulation.main._call_nvidia_nim", new=AsyncMock(return_value='{"text": "...", "kind": "formal"}')):
+    with patch("server_reformulation.main._call_reformulation_model", new=AsyncMock(return_value='{"text": "...", "kind": "formal"}')):
         result = await generate_paraphrases("test query")
 
     assert result["ok"] is False
@@ -86,11 +89,11 @@ async def test_generate_paraphrases_n_clamped():
     """n is clamped to [1, 8]; LLM is still called with the clamped value."""
     call_args: list = []
 
-    async def mock_nim(prompt: str) -> str:
+    async def mock_model(prompt: str) -> str:
         call_args.append(prompt)
         return MOCK_VARIANTS_JSON
 
-    with patch("server_reformulation.main._call_nvidia_nim", new=mock_nim):
+    with patch("server_reformulation.main._call_reformulation_model", new=mock_model):
         result = await generate_paraphrases("q", n=100)
 
     assert result["ok"] is True
@@ -100,17 +103,62 @@ async def test_generate_paraphrases_n_clamped():
 
 @pytest.mark.asyncio
 async def test_generate_paraphrases_missing_api_key():
-    """Raises ValueError when NVIDIA_API_KEY is empty → ok=False."""
+    """A missing reformulation-model key returns the existing error shape."""
     with patch("server_reformulation.main.config") as mock_cfg:
-        mock_cfg.NVIDIA_API_KEY = ""
-        mock_cfg.NVIDIA_BASE_URL = "https://example.com"
-        mock_cfg.NVIDIA_MODEL = "test-model"
-        mock_cfg.NVIDIA_LLM_TIMEOUT_S = 5.0
+        mock_cfg.REFORMULATION_API_KEY = ""
 
         result = await generate_paraphrases("test")
 
     assert result["ok"] is False
-    assert "NVIDIA_API_KEY" in result["error"]
+    assert "REFORMULATION_API_KEY" in result["error"]
+
+
+def test_streaming_model_uses_supplied_configuration_and_collects_content():
+    """Reasoning chunks are ignored; only streamed model content forms raw JSON."""
+    chunks = [
+        SimpleNamespace(choices=[]),
+        SimpleNamespace(choices=[SimpleNamespace(delta=SimpleNamespace(content=None, reasoning_content="thinking"))]),
+        SimpleNamespace(choices=[SimpleNamespace(delta=SimpleNamespace(content="[", reasoning_content=None))]),
+        SimpleNamespace(choices=[SimpleNamespace(delta=SimpleNamespace(content="]", reasoning_content=None))]),
+    ]
+    with patch("server_reformulation.main.config") as mock_cfg, patch(
+        "server_reformulation.main.OpenAI"
+    ) as openai:
+        mock_cfg.REFORMULATION_API_KEY = "test-key"
+        mock_cfg.REFORMULATION_BASE_URL = "https://integrate.api.nvidia.com/v1"
+        mock_cfg.REFORMULATION_MODEL = "nvidia/nemotron-3.5-lightning-30b-a3b"
+        openai.return_value.chat.completions.create.return_value = chunks
+
+        raw = _stream_reformulation_response("test prompt")
+
+    assert raw == "[]"
+    openai.assert_called_once_with(
+        base_url="https://integrate.api.nvidia.com/v1",
+        api_key="test-key",
+    )
+    openai.return_value.chat.completions.create.assert_called_once_with(
+        model="nvidia/nemotron-3.5-lightning-30b-a3b",
+        messages=[{"role": "user", "content": "test prompt"}],
+        temperature=1,
+        top_p=0.95,
+        max_tokens=16384,
+        extra_body={
+            "chat_template_kwargs": {"enable_thinking": True},
+            "reasoning_budget": 16384,
+        },
+        stream=True,
+    )
+
+
+@pytest.mark.asyncio
+async def test_generate_paraphrases_model_failure_returns_existing_error_shape():
+    with patch(
+        "server_reformulation.main._call_reformulation_model",
+        new=AsyncMock(side_effect=RuntimeError("model unavailable")),
+    ):
+        result = await generate_paraphrases("test")
+
+    assert result == {"ok": False, "error": "model unavailable", "http_status": None}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -221,3 +269,96 @@ async def test_stability_all_null_gr():
     assert result["ok"] is True
     assert result["stability_score"] == 0.0
     assert result["majority_gr_number"] is None
+
+
+@pytest.mark.asyncio
+async def test_stability_keeps_at_most_three_concurrent_chat_calls():
+    """The model migration must not change the existing semaphore limit."""
+    variants = [{"text": f"Variant {i}", "kind": f"kind-{i}"} for i in range(4)]
+    active = 0
+    max_active = 0
+
+    async def mock_log(message: str, web_search: bool) -> dict:
+        nonlocal active, max_active
+        active += 1
+        max_active = max(max_active, active)
+        await asyncio.sleep(0.01)
+        active -= 1
+        return {
+            "ok": True,
+            "message_id": message,
+            "top_gr_number": "GR-001",
+            "top_filepath": "/docs/GR-001.pdf",
+            "error": None,
+        }
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = os.path.join(tmpdir, "test.db")
+        from mcp_common import store as real_store
+        with patch("server_reformulation.main._log_chat_call", new=mock_log), \
+             patch("server_reformulation.main.get_db", new=lambda: real_store.get_db(db_path)), \
+             patch("server_reformulation.main.execute_with_retry", new=real_store.execute_with_retry):
+            conn = await real_store.get_db(db_path)
+            await conn.close()
+            result = await stability_tool("test", variants=variants, web_search=False)
+
+    assert result["ok"] is True
+    assert max_active == 3
+
+
+def test_dotenv_loading_and_overrides():
+    """load_dotenv populates unset keys from .env while preserving existing env vars."""
+    from mcp_common.config import load_dotenv
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        env_file = os.path.join(tmpdir, ".env")
+        with open(env_file, "w", encoding="utf-8") as f:
+            f.write(
+                '# Test comment\n'
+                'REFORMULATION_API_KEY="test-key-from-dotenv"\n'
+                'REFORMULATION_MODEL=nvidia/nemotron-3.5-lightning-30b-a3b\n'
+                'REFORMULATION_BASE_URL="https://integrate.api.nvidia.com/v1"\n'
+                'EXISTING_OVERRIDE="new_value"\n'
+            )
+
+        with patch.dict(os.environ, {"EXISTING_OVERRIDE": "original_value"}, clear=False):
+            # Remove any existing REFORMULATION_API_KEY from env for clean test
+            os.environ.pop("REFORMULATION_API_KEY", None)
+            load_dotenv(dotenv_path=env_file, override=False)
+
+            assert os.environ.get("REFORMULATION_API_KEY") == "test-key-from-dotenv"
+            assert os.environ.get("REFORMULATION_MODEL") == "nvidia/nemotron-3.5-lightning-30b-a3b"
+            assert os.environ.get("REFORMULATION_BASE_URL") == "https://integrate.api.nvidia.com/v1"
+            # Preserves existing environment variable override
+            assert os.environ.get("EXISTING_OVERRIDE") == "original_value"
+
+
+@pytest.mark.asyncio
+async def test_stability_with_string_variants():
+    """When variants is passed as a list of strings, it normalizes and succeeds."""
+    variants = [
+        "How does MRTP regulate development?",
+        "What does MRTP say about land use?",
+    ]
+    gr_seq = ["GR-001", "GR-001", "GR-001"]
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = os.path.join(tmpdir, "test.db")
+        from mcp_common import store as real_store
+        with patch("server_reformulation.main._log_chat_call", new=_make_mock_log_chat(gr_seq)), \
+             patch("server_reformulation.main.get_db", new=lambda: real_store.get_db(db_path)), \
+             patch("server_reformulation.main.execute_with_retry", new=real_store.execute_with_retry):
+            conn = await real_store.get_db(db_path)
+            await conn.close()
+
+            result = await stability_tool(
+                "How does the MRTP Act regulate development and use of land?",
+                variants=variants,
+                web_search=False,
+            )
+
+    assert result["ok"] is True
+    assert result["stability_score"] == 1.0
+    assert result["majority_gr_number"] == "GR-001"
+    assert len(result["results"]) == 3
+

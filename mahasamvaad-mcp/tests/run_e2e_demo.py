@@ -9,7 +9,7 @@ Output:
     demo_output.txt   - human-readable summary
 
 Environment variables required:
-    NVIDIA_API_KEY  - for Server 3 paraphrase generation (NVIDIA NIM)
+    REFORMULATION_API_KEY  - for Server 3 paraphrase generation
     STORE_DB_PATH   - defaults to ./data/store.db
 """
 from __future__ import annotations

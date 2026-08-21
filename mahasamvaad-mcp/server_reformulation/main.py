@@ -18,7 +18,7 @@ from collections import Counter
 from datetime import datetime, timezone
 from typing import Any
 
-import httpx
+from openai import OpenAI
 
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -44,7 +44,7 @@ mcp = MCPServer(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# LLM paraphrase generation via Google Gemini
+# LLM paraphrase generation
 # ─────────────────────────────────────────────────────────────────────────────
 def _build_paraphrase_prompt(query: str, n: int, include_marathi: bool) -> str:
     kinds_desc = "formal (official/legal language), informal (conversational), reorder (same words, different order/structure)"
@@ -69,38 +69,43 @@ Output format (example):
 ]"""
 
 
-async def _call_nvidia_nim(prompt: str) -> str:
-    """Call NVIDIA NIM API to generate paraphrases. Returns raw response text.
-
-    Uses httpx (already a project dependency) to POST to the OpenAI-compatible
-    /chat/completions endpoint at integrate.api.nvidia.com.
-    """
-    api_key = config.NVIDIA_API_KEY
+def _stream_reformulation_response(prompt: str) -> str:
+    """Run the configured streaming model and return only generated content."""
+    api_key = config.REFORMULATION_API_KEY
     if not api_key:
-        raise ValueError("NVIDIA_API_KEY is not set.")
+        raise ValueError("REFORMULATION_API_KEY is not set.")
 
-    url = f"{config.NVIDIA_BASE_URL}/chat/completions"
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Accept": "application/json",
-    }
-    payload = {
-        "model": config.NVIDIA_MODEL,
-        "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": 4096,
-        "temperature": 0.7,
-        "top_p": 0.95,
-        "stream": False,
-    }
+    client = OpenAI(
+        base_url=config.REFORMULATION_BASE_URL,
+        api_key=api_key,
+    )
+    stream = client.chat.completions.create(
+        model=config.REFORMULATION_MODEL,
+        messages=[{"role": "user", "content": prompt}],
+        temperature=1,
+        top_p=0.95,
+        max_tokens=16384,
+        extra_body={
+            "chat_template_kwargs": {"enable_thinking": True},
+            "reasoning_budget": 16384,
+        },
+        stream=True,
+    )
 
-    # Timeout from config — large NIM models (gemma-4-31b-it) can take 2-3 min
-    async with httpx.AsyncClient(timeout=httpx.Timeout(config.NVIDIA_LLM_TIMEOUT_S)) as client:
-        resp = await client.post(url, headers=headers, json=payload)
-        resp.raise_for_status()
-        data = resp.json()
+    content_parts: list[str] = []
+    for chunk in stream:
+        if not chunk.choices:
+            continue
+        content = chunk.choices[0].delta.content
+        if content is not None:
+            content_parts.append(content)
 
-    # OpenAI-compatible response: choices[0].message.content
-    return data["choices"][0]["message"]["content"]
+    return "".join(content_parts)
+
+
+async def _call_reformulation_model(prompt: str) -> str:
+    """Run the synchronous streaming client without blocking the event loop."""
+    return await asyncio.to_thread(_stream_reformulation_response, prompt)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -109,7 +114,7 @@ async def _call_nvidia_nim(prompt: str) -> str:
 @mcp.tool(
     name="generate_paraphrases",
     description=(
-        "Generate N paraphrases of a government-scheme question using NVIDIA NIM LLM. "
+        "Generate N paraphrases of a government-scheme question using the reformulation model. "
         "Variants tagged formal | informal | reorder | marathi. "
         "Does NOT fire them at /chat — use test_reformulation_stability for that."
     ),
@@ -123,7 +128,7 @@ async def generate_paraphrases(
     try:
         n = max(1, min(n, 8))
         prompt = _build_paraphrase_prompt(query, n, include_marathi)
-        raw_text = await _call_nvidia_nim(prompt)
+        raw_text = await _call_reformulation_model(prompt)
 
         cleaned = raw_text.strip()
         if cleaned.startswith("```"):
@@ -239,7 +244,17 @@ async def test_reformulation_stability(
                 return {"ok": False, "error": f"Paraphrase generation failed: {gen_result.get('error')}", "http_status": None}
             variants = gen_result["variants"]
 
-        all_calls: list[dict] = [{"text": query, "kind": "original"}] + list(variants)
+        normalized_variants: list[dict[str, Any]] = []
+        for idx, v in enumerate(variants):
+            if isinstance(v, str):
+                normalized_variants.append({"text": v, "kind": f"variant_{idx + 1}"})
+            elif isinstance(v, dict):
+                normalized_variants.append({
+                    "text": str(v.get("text", "")),
+                    "kind": str(v.get("kind", f"variant_{idx + 1}")),
+                })
+
+        all_calls: list[dict] = [{"text": query, "kind": "original"}] + normalized_variants
 
         semaphore = asyncio.Semaphore(3)
 
@@ -329,7 +344,7 @@ def main() -> None:
     args = _parse_args()
     if args.transport == "streamable-http":
         logger.info("Starting reformulation server on %s:%d (streamable-http)", args.host, args.port)
-        mcp.run_streamable_http_async(host=args.host, port=args.port)
+        mcp.run(transport="streamable-http", host=args.host, port=args.port)
     else:
         logger.info("Starting reformulation server on stdio")
         mcp.run_stdio_async()

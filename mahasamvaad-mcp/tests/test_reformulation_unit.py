@@ -127,6 +127,7 @@ def test_streaming_model_uses_supplied_configuration_and_collects_content():
         mock_cfg.REFORMULATION_API_KEY = "test-key"
         mock_cfg.REFORMULATION_BASE_URL = "https://integrate.api.nvidia.com/v1"
         mock_cfg.REFORMULATION_MODEL = "nvidia/nemotron-3.5-lightning-30b-a3b"
+        mock_cfg.MCP_HTTP_TIMEOUT_S = 60
         openai.return_value.chat.completions.create.return_value = chunks
 
         raw = _stream_reformulation_response("test prompt")
@@ -135,16 +136,16 @@ def test_streaming_model_uses_supplied_configuration_and_collects_content():
     openai.assert_called_once_with(
         base_url="https://integrate.api.nvidia.com/v1",
         api_key="test-key",
+        timeout=60,
     )
     openai.return_value.chat.completions.create.assert_called_once_with(
         model="nvidia/nemotron-3.5-lightning-30b-a3b",
         messages=[{"role": "user", "content": "test prompt"}],
-        temperature=1,
+        temperature=0.3,
         top_p=0.95,
-        max_tokens=16384,
+        max_tokens=2048,
         extra_body={
-            "chat_template_kwargs": {"enable_thinking": True},
-            "reasoning_budget": 16384,
+            "chat_template_kwargs": {"enable_thinking": False},
         },
         stream=True,
     )

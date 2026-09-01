@@ -78,16 +78,16 @@ def _stream_reformulation_response(prompt: str) -> str:
     client = OpenAI(
         base_url=config.REFORMULATION_BASE_URL,
         api_key=api_key,
+        timeout=config.MCP_HTTP_TIMEOUT_S,
     )
     stream = client.chat.completions.create(
         model=config.REFORMULATION_MODEL,
         messages=[{"role": "user", "content": prompt}],
-        temperature=1,
+        temperature=0.3,
         top_p=0.95,
-        max_tokens=16384,
+        max_tokens=2048,
         extra_body={
-            "chat_template_kwargs": {"enable_thinking": True},
-            "reasoning_budget": 16384,
+            "chat_template_kwargs": {"enable_thinking": False},
         },
         stream=True,
     )
@@ -96,9 +96,11 @@ def _stream_reformulation_response(prompt: str) -> str:
     for chunk in stream:
         if not chunk.choices:
             continue
-        content = chunk.choices[0].delta.content
-        if content is not None:
-            content_parts.append(content)
+        delta = chunk.choices[0].delta
+        if delta is not None:
+            content = getattr(delta, "content", None)
+            if content is not None:
+                content_parts.append(content)
 
     return "".join(content_parts)
 

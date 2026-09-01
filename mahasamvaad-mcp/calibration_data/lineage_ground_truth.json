@@ -1,0 +1,74 @@
+[
+  {
+    "id": "lineage-001",
+    "gr_number": "201908021213101625",
+    "department": "Urban Development",
+    "relation_type": "supersedes",
+    "target_gr": "201804151122334455",
+    "expected_direction": "201908021213101625 supersedes 201804151122334455",
+    "description": "Unified Development Control and Promotion Regulations (UDCPR) base supersession"
+  },
+  {
+    "id": "lineage-002",
+    "gr_number": "202012021815002233",
+    "department": "Urban Development",
+    "relation_type": "amends",
+    "target_gr": "201908021213101625",
+    "expected_direction": "202012021815002233 amends 201908021213101625",
+    "description": "Amendment to UDCPR Regulation 3.4 regarding Transferable Development Rights (TDR)"
+  },
+  {
+    "id": "lineage-003",
+    "gr_number": "202107151430221199",
+    "department": "Agriculture",
+    "relation_type": "supersedes",
+    "target_gr": "201802101015309988",
+    "expected_direction": "202107151430221199 supersedes 201802101015309988",
+    "description": "Magel Tyala Shettale subsidy guidelines revision"
+  },
+  {
+    "id": "lineage-004",
+    "gr_number": "202203181645123344",
+    "department": "Energy",
+    "relation_type": "amends",
+    "target_gr": "201901050930157766",
+    "expected_direction": "202203181645123344 amends 201901050930157766",
+    "description": "Mukhyamantri Saur Krushi Pump Yojana beneficiary quota expansion"
+  },
+  {
+    "id": "lineage-005",
+    "gr_number": "202306201112445566",
+    "department": "Social Justice",
+    "relation_type": "supersedes",
+    "target_gr": "201611081540201122",
+    "expected_direction": "202306201112445566 supersedes 201611081540201122",
+    "description": "Savitribai Phule scholarship income ceiling revision"
+  },
+  {
+    "id": "lineage-006",
+    "gr_number": "202309121705118877",
+    "department": "Revenue",
+    "relation_type": "amends",
+    "target_gr": "202008141200334411",
+    "expected_direction": "202309121705118877 amends 202008141200334411",
+    "description": "E-mutation and 7/12 land record digitisation process timeline update"
+  },
+  {
+    "id": "lineage-007",
+    "gr_number": "202401101320456633",
+    "department": "Women and Child Development",
+    "relation_type": "supersedes",
+    "target_gr": "201705221010105544",
+    "expected_direction": "202401101320456633 supersedes 201705221010105544",
+    "description": "Majhi Kanya Bhagyashree scheme entitlement restructuring"
+  },
+  {
+    "id": "lineage-008",
+    "gr_number": "202311050945223311",
+    "department": "Finance",
+    "relation_type": "revokes",
+    "target_gr": "201504011400229900",
+    "expected_direction": "202311050945223311 revokes 201504011400229900",
+    "description": "Revocation of obsolete procurement exemption circular"
+  }
+]

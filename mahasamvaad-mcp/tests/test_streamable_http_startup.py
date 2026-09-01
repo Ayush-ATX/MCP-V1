@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+import server as unified_server
 from server_grounding import main as grounding_main
 from server_observability import main as observability_main
 from server_reformulation import main as reformulation_main
@@ -14,11 +15,13 @@ from server_reformulation import main as reformulation_main
 @pytest.mark.parametrize(
     ("server_module", "host", "port"),
     [
+        (unified_server, "127.0.0.1", 8001),
         (observability_main, "127.0.0.1", 8101),
         (grounding_main, "127.0.0.1", 8102),
         (reformulation_main, "127.0.0.1", 8103),
     ],
 )
+
 def test_streamable_http_main_uses_synchronous_sdk_runner(server_module, host, port):
     """The HTTP branch must run the SDK entry point, not create an unawaited coroutine."""
     async_runner = MagicMock()

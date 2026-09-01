@@ -1,8 +1,10 @@
 data/store.db
 data/*.db
+storage/*.db
+storage/*.sqlite
+storage/*.sqlite3
 __pycache__/
 *.py[cod]
-.env
 **/venv*/
 **/.venv/
 .pytest_cache/
@@ -10,3 +12,8 @@ __pycache__/
 dist/
 build/
 pdf_content.txt
+.env
+.env.*
+!.env.example
+
+

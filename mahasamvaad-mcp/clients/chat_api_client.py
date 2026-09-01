@@ -1,4 +1,4 @@
-"""mcp_common/chat_client.py — §4.2 shared HTTP wrapper for POST /api/v1/chat."""
+"""clients/chat_api_client.py — Robust HTTP client wrapper for POST /api/v1/chat."""
 from __future__ import annotations
 
 import asyncio
@@ -82,23 +82,25 @@ async def call_chat(
     chat_path: str | None = None,
     timeout_s: float | None = None,
 ) -> ChatResult:
-    """Call POST /api/v1/chat and return a structured ChatResult."""
+    """Call POST /api/v1/chat and return a structured ChatResult.
+
+    Never raises — all errors are captured and returned as ChatResult(ok=False, ...).
+    """
     generated_user_msg_id = str(uuid.uuid4())
     generated_msg_id = str(uuid.uuid4())
     effective_user_id = user_id or config.MCP_DEFAULT_USER_ID
     effective_chatroom_id = chatroom_id or f"chatroom-{str(uuid.uuid4())[:8]}"
 
-    payload: dict[str, Any] = {
-        "user_id": effective_user_id,
-        "chatroom_id": effective_chatroom_id,
-        "user_message_id": generated_user_msg_id,
-        "message_id": generated_msg_id,
-        "message": message,
-        "history": history or [],
-        "last_turn_filepaths": last_turn_filepaths or [],
-    }
-    if model_name:
-        payload["model_name"] = model_name
+    req = ChatRequest(
+        user_id=effective_user_id,
+        chatroom_id=effective_chatroom_id,
+        user_message_id=generated_user_msg_id,
+        message_id=generated_msg_id,
+        message=message,
+        model_name=model_name,
+        history=history or [],
+        last_turn_filepaths=last_turn_filepaths or [],
+    )
 
     base = (base_url or config.CHAT_API_BASE_URL or config.MAHASAMVAAD_BASE_URL).rstrip("/")
     path = chat_path or config.CHAT_API_CHAT_PATH
@@ -106,49 +108,47 @@ async def call_chat(
     params = {"web_search": str(web_search).lower()}
     timeout = httpx.Timeout(float(timeout_s or config.MCP_HTTP_TIMEOUT_S))
 
-    async def _do_request() -> httpx.Response:
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            return await client.post(url, json=payload, params=params)
-
     last_error: str | None = None
     last_status: int | None = None
-    raw_body: Any | None = None
 
     for attempt in range(2):
         try:
-            resp = await _do_request()
-            last_status = resp.status_code
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                resp = await client.post(url, json=req.to_payload(), params=params)
+                last_status = resp.status_code
 
-            if resp.status_code == 200:
-                try:
-                    raw_body = resp.json()
-                except (json.JSONDecodeError, ValueError) as exc:
-                    last_error = f"Malformed JSON in response: {exc}"
-                    logger.error("call_chat: malformed JSON — %s", exc)
+                if resp.status_code == 200:
+                    try:
+                        raw_body = resp.json()
+                    except (json.JSONDecodeError, ValueError) as exc:
+                        last_error = f"Malformed JSON in response: {exc}"
+                        logger.error("call_chat: malformed JSON — %s", exc)
+                        return ChatResult(
+                            ok=False,
+                            user_message_id=generated_user_msg_id,
+                            message_id=generated_msg_id,
+                            chatroom_id=effective_chatroom_id,
+                            error=last_error,
+                            http_status=200,
+                        )
+                    return _parse_success(raw_body, generated_user_msg_id, generated_msg_id, effective_chatroom_id)
+
+                # 4xx — client error, do not retry
+                if 400 <= resp.status_code < 500:
+                    last_error = f"HTTP {resp.status_code}: {resp.text[:500]}"
+                    logger.warning("call_chat: 4xx response (%d), not retrying", resp.status_code)
                     return ChatResult(
                         ok=False,
                         user_message_id=generated_user_msg_id,
                         message_id=generated_msg_id,
                         chatroom_id=effective_chatroom_id,
                         error=last_error,
-                        http_status=200,
+                        http_status=resp.status_code,
                     )
-                return _parse_success(raw_body, generated_user_msg_id, generated_msg_id, effective_chatroom_id)
 
-            if 400 <= resp.status_code < 500:
+                # 5xx — server error, retry once
                 last_error = f"HTTP {resp.status_code}: {resp.text[:500]}"
-                logger.warning("call_chat: 4xx response (%d), not retrying", resp.status_code)
-                return ChatResult(
-                    ok=False,
-                    user_message_id=generated_user_msg_id,
-                    message_id=generated_msg_id,
-                    chatroom_id=effective_chatroom_id,
-                    error=last_error,
-                    http_status=resp.status_code,
-                )
-
-            last_error = f"HTTP {resp.status_code}: {resp.text[:500]}"
-            logger.warning("call_chat: 5xx response (%d) attempt %d", resp.status_code, attempt + 1)
+                logger.warning("call_chat: 5xx response (%d) attempt %d", resp.status_code, attempt + 1)
 
         except httpx.RequestError as exc:
             last_error = f"Connection/timeout error: {exc}"
@@ -175,6 +175,7 @@ def _parse_success(
     fallback_msg_id: str,
     chatroom_id: str,
 ) -> ChatResult:
+    """Parse a successful 200 response body into a ChatResult."""
     if not isinstance(body, dict):
         return _malformed_response(user_message_id, fallback_msg_id, chatroom_id, "top-level JSON must be an object")
 

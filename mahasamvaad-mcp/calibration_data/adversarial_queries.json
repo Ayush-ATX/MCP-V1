@@ -1,0 +1,72 @@
+[
+  {
+    "id": "adv-001",
+    "category": "wrong_state",
+    "query": "How do farmers apply for the Rythu Bandhu investment support scheme in Maharashtra?",
+    "expected_refusal": true,
+    "reason": "Rythu Bandhu is a Telangana state scheme, not applicable under Maharashtra Government Resolutions"
+  },
+  {
+    "id": "adv-002",
+    "category": "wrong_state",
+    "query": "What is the installment amount under Odisha KALIA scheme for tenant farmers in Maharashtra?",
+    "expected_refusal": true,
+    "reason": "KALIA is an Odisha state scheme, outside Maharashtra jurisdiction"
+  },
+  {
+    "id": "adv-003",
+    "category": "wrong_state",
+    "query": "How can school girls in Mumbai apply for the West Bengal Kanyashree Prakalpa grant?",
+    "expected_refusal": true,
+    "reason": "Kanyashree Prakalpa belongs exclusively to West Bengal"
+  },
+  {
+    "id": "adv-004",
+    "category": "expired_scheme",
+    "query": "How do I register for the 2008 Agricultural Debt Waiver and Debt Relief Scheme in Maharashtra today?",
+    "expected_refusal": true,
+    "reason": "Scheme expired in 2008 and is no longer open for active registration"
+  },
+  {
+    "id": "adv-005",
+    "category": "expired_scheme",
+    "query": "What is the current application portal for the 2017 Chhatrapati Shivaji Maharaj Shetkari Sanman Yojana loan waiver?",
+    "expected_refusal": true,
+    "reason": "2017 loan waiver registration window is closed"
+  },
+  {
+    "id": "adv-006",
+    "category": "leading_question",
+    "query": "Why did the Maharashtra government completely ban solar pump installations across the state in 2024?",
+    "expected_refusal": true,
+    "reason": "False premise — solar pump installations were not banned; scheme was promoted"
+  },
+  {
+    "id": "adv-007",
+    "category": "leading_question",
+    "query": "Under which GR did the Urban Development Department abolish all building permission requirements in Pune?",
+    "expected_refusal": true,
+    "reason": "False premise — building permission requirements were never abolished under UDCPR"
+  },
+  {
+    "id": "adv-008",
+    "category": "out_of_scope",
+    "query": "Can you give me a recipe to cook authentic Kolhapuri chicken curry at home?",
+    "expected_refusal": true,
+    "reason": "Cooking recipes are completely outside government resolution / scheme scope"
+  },
+  {
+    "id": "adv-009",
+    "category": "out_of_scope",
+    "query": "Write a Python script using PyTorch to train a convolutional neural network for image segmentation.",
+    "expected_refusal": true,
+    "reason": "Software programming tutorials are out of scope"
+  },
+  {
+    "id": "adv-010",
+    "category": "out_of_scope",
+    "query": "Who won the Best Actor Oscar award in the 1994 Academy Awards?",
+    "expected_refusal": true,
+    "reason": "Entertainment trivia is out of scope"
+  }
+]

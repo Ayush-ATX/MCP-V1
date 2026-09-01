@@ -1,0 +1,58 @@
+[
+  {
+    "id": "bi-001",
+    "department": "Agriculture",
+    "query_en": "What is the eligibility criteria and subsidy percentage for the Magel Tyala Shettale scheme in Maharashtra?",
+    "query_mr": "महाराष्ट्रातील मागेल त्याला शेततळे योजनेसाठी पात्रता निकष आणि अनुदानाची टक्केवारी काय आहे?",
+    "key_entities": ["Magel Tyala Shettale", "मागेल त्याला शेततळे", "subsidy", "अनुदान"]
+  },
+  {
+    "id": "bi-002",
+    "department": "Energy",
+    "query_en": "How much subsidy is provided for a 5 HP solar agricultural pump under Mukhyamantri Saur Krushi Pump Yojana?",
+    "query_mr": "मुख्यमंत्री सौर कृषी पंप योजनेअंतर्गत ५ एचपी सौर कृषी पंपासाठी किती अनुदान दिले जाते?",
+    "key_entities": ["5 HP", "५ एचपी", "Mukhyamantri Saur Krushi Pump", "मुख्यमंत्री सौर कृषी पंप"]
+  },
+  {
+    "id": "bi-003",
+    "department": "Urban Development",
+    "query_en": "What are the rules for Transferable Development Rights (TDR) utilization under the Unified Development Control Regulations (UDCPR)?",
+    "query_mr": "एकीकृत विकास नियंत्रण आणि प्रोत्साहन नियमावली (UDCPR) अंतर्गत टीडीआर (TDR) वापराचे नियम काय आहेत?",
+    "key_entities": ["UDCPR", "TDR", "टीडीआर"]
+  },
+  {
+    "id": "bi-004",
+    "department": "Social Justice",
+    "query_en": "What is the annual family income limit to apply for the Dr. Babasaheb Ambedkar Swadhar Yojana hostel scholarship?",
+    "query_mr": "डॉ. बाबासाहेब आंबेडकर स्वाधार योजना वसतिगृह शिष्यवृत्तीसाठी अर्ज करण्यासाठी वार्षिक कौटुंबिक उत्पन्न मर्यादा किती आहे?",
+    "key_entities": ["Swadhar Yojana", "स्वाधार योजना", "income limit", "उत्पन्न मर्यादा"]
+  },
+  {
+    "id": "bi-005",
+    "department": "Women and Child Development",
+    "query_en": "What financial assistance is given on the birth of a girl child under the Majhi Kanya Bhagyashree scheme?",
+    "query_mr": "माझी कन्या भाग्यश्री योजनेअंतर्गत मुलीच्या जन्मानंतर किती आर्थिक सहाय्य दिले जाते?",
+    "key_entities": ["Majhi Kanya Bhagyashree", "माझी कन्या भाग्यश्री", "financial assistance", "आर्थिक सहाय्य"]
+  },
+  {
+    "id": "bi-006",
+    "department": "Revenue",
+    "query_en": "What is the official procedure and required documents for applying for a digitally signed 7/12 land extract in Maharashtra?",
+    "query_mr": "महाराष्ट्रात डिजिटल स्वाक्षरी असलेला ७/१२ उतारा मिळवण्यासाठी अधिकृत प्रक्रिया आणि आवश्यक कागदपत्रे कोणती आहेत?",
+    "key_entities": ["7/12 extract", "७/१२ उतारा", "digitally signed", "डिजिटल स्वाक्षरी"]
+  },
+  {
+    "id": "bi-007",
+    "department": "Public Works",
+    "query_en": "What are the contractor registration guidelines for class 1 civil contractors in Maharashtra Public Works Department?",
+    "query_mr": "महाराष्ट्र सार्वजनिक बांधकाम विभागामध्ये वर्ग १ च्या सिव्हिल कंत्राटदारांसाठी नोंदणी नियमावली काय आहे?",
+    "key_entities": ["Class 1 contractor", "वर्ग १ कंत्राटदार", "PWD", "सार्वजनिक बांधकाम विभाग"]
+  },
+  {
+    "id": "bi-008",
+    "department": "Health and Family Welfare",
+    "query_en": "Which medical treatments and surgery expenses are covered under Mahatma Jyotirao Phule Jan Arogya Yojana (MJPJAY)?",
+    "query_mr": "महात्मा ज्योतिराव फुले जन आरोग्य योजनेअंतर्गत (MJPJAY) कोणते वैद्यकीय उपचार आणि शस्त्रक्रियांचा खर्च समाविष्ट आहे?",
+    "key_entities": ["MJPJAY", "महात्मा ज्योतिराव फुले जन आरोग्य योजना", "Jan Arogya", "वैद्यकीय उपचार"]
+  }
+]

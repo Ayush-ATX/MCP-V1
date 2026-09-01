@@ -1,171 +1,141 @@
-# MahaSamvaad MCP Server Suite
+# MahaSamvaad Eval MCP Suite (v2.0.0)
 
-Three Model Context Protocol (MCP) servers built around the MahaSamvaad staging chat endpoint (`POST /api/v1/chat`). Together they provide an agent-accessible layer for:
-
-| Server | Name | Purpose |
-|--------|------|---------|
-| 1 | `mahasamvaad-observability` | Log every chat call, dashboard stats, recent query resource |
-| 2 | `mahasamvaad-grounding` | Score answer grounding via difflib_v1 sentence-anchor overlap |
-| 3 | `mahasamvaad-reformulation` | Generate paraphrases + test retrieval stability under phrasing variation |
-
-All three share a single SQLite database (`data/store.db`) in WAL mode and a common HTTP chat client.
+Unified Model Context Protocol (MCP) Server for Evaluation, Observability, Grounding Scoring, Query Reformulation, and AI-Safety Evaluation of the **MahaSamvaad Government Resolution (GR) Conversational Agent**.
 
 ---
 
-## Directory Layout
+## 1. Overview & Architecture
+
+MahaSamvaad Eval MCP consolidates all observability and evaluation layers into a **single production MCP server process** (`server.py`) backed by a shared SQLite database with WAL mode and resilient retry semantics (`storage/mahasamvaad_eval.db`).
 
 ```
 mahasamvaad-mcp/
-├── mcp_common/
-│   ├── config.py          # §4.3 env var loading
-│   ├── store.py           # SQLite WAL factory + 5-table schema migration
-│   └── chat_client.py     # Shared POST /api/v1/chat wrapper
-├── server_observability/
-│   └── main.py            # Server 1 — query_and_log, get_dashboard_stats, query_log://recent
-├── server_grounding/
-│   └── main.py            # Server 2 — score_grounding, grounding_trend
-├── server_reformulation/
-│   └── main.py            # Server 3 — generate_paraphrases, test_reformulation_stability
+├── server.py                        # Unified MCP server entrypoint (registers all 8 domains)
+├── config.py                        # Pydantic BaseSettings loading .env with fail-fast validation
+├── clients/
+│   ├── chat_api_client.py           # HTTP wrapper for POST /api/v1/chat (retries, timeouts, schemas)
+│   ├── storage_client.py            # HTTP wrapper for GET /api/v1/storage PDF/text retrieval
+│   ├── llm_judge_client.py          # NVIDIA LLM-as-a-Judge with JSON parsing and fast failover
+│   ├── embedding_client.py          # nemotron-3-embed-1b embeddings with SQLite vector caching
+│   └── serper_client.py             # Google Serper search API client
+├── tools/
+│   ├── observability/               # query_and_log, get_dashboard_stats, list_recent_queries
+│   ├── grounding/                   # score_citation_coverage (embedding_v2), grounding_trend
+│   ├── reformulation/               # generate_paraphrases, test_paraphrase_robustness
+│   ├── hallucinated_entity/         # aieval.detect_hallucinated_entities
+│   ├── lineage_correctness/         # aieval.check_lineage_correctness
+│   ├── bilingual_parity/            # aieval.evaluate_bilingual_parity
+│   ├── refusal_redteam/             # aieval.run_refusal_redteam_suite
+│   └── corpus_web_precedence/       # aieval.check_corpus_web_precedence
+├── storage/
+│   ├── db.py                        # aiosqlite connection manager (WAL mode, busy retry loop)
+│   └── migrations/                  # Automated SQLite schema migrations & legacy data import
+├── calibration_data/
+│   ├── gr_number_date_regex_patterns.py  # Regex library for GR numbers, dates, sections, figures
+│   ├── lineage_ground_truth.json         # Hand-verified GR supersession/amendment chains
+│   ├── bilingual_query_set.json          # Paired EN/MR queries across departments
+│   ├── adversarial_queries.json          # Out-of-state, expired, loaded, off-topic queries
+│   └── known_conflict_queries.json       # Curated corpus-vs-web discrepancy seed queries
 ├── tests/
-│   ├── test_chat_client.py        # Unit: timeout/5xx/4xx/malformed JSON/UUID
-│   ├── test_sentence_splitter.py  # Unit: Devanagari danda + Latin full stop
-│   ├── test_grounding.py          # Unit: difflib_v1, hand-labelled samples
-│   ├── test_stability_score.py    # Unit: stability score arithmetic
-│   ├── test_reformulation_unit.py # Unit: generate_paraphrases + stability (mocked)
-│   ├── test_concurrent_writes.py  # Phase 5: concurrent write retry
-│   └── run_e2e_demo.py            # 15-question end-to-end demo
-├── data/
-│   └── store.db           # Populated at runtime; excluded from VCS
-├── requirements.txt
-├── pytest.ini
 └── .env.example
 ```
 
 ---
 
-## Prerequisites
+## 2. Security & Key Rotation Follow-Up
 
-- **Python 3.11** (the venv is `venv311/` in the project root, one level up)
-- **Python venv** created with: `py -3.11 -m venv venv311`
-- Dependencies installed: `venv311\Scripts\pip install -r requirements.txt`
-
----
-
-## Environment Variables (§4.3)
-
-Copy `.env.example` to `.env` and adjust:
-
-| Variable | Default | Purpose |
-|----------|---------|---------|
-| `MAHASAMVAAD_BASE_URL` | `http://20.40.56.211:8000` | Staging endpoint |
-| `STORE_DB_PATH` | `./data/store.db` | Shared SQLite file — **all three servers must point here** |
-| `MCP_DEFAULT_USER_ID` | `mcp-eval-bot` | Default `user_id` for chat calls |
-| `MCP_HTTP_TIMEOUT_S` | `60` | Per-call timeout in seconds |
-| `GROUNDING_METHOD` | `difflib_v1` | `difflib_v1` \| `embedding_v2` (stretch) |
-| `GROUNDING_THRESHOLD` | `0.55` | Minimum difflib ratio to count a sentence as grounded |
-| `LOG_LEVEL` | `INFO` | Python logging level (all servers log to **stderr** only) |
-| `REFORMULATION_API_KEY` | *(required for Server 3)* | API key for the reformulation model |
-| `REFORMULATION_MODEL` | `nvidia/nemotron-3.5-lightning-30b-a3b` | Reformulation model identifier |
-| `REFORMULATION_BASE_URL` | `https://integrate.api.nvidia.com/v1` | OpenAI-compatible model API base URL |
-| `MCP_TRANSPORT` | `stdio` | `stdio` \| `streamable-http` |
-| `MCP_HTTP_HOST` | `127.0.0.1` | Bind address for streamable-http (localhost only — §11) |
-| `MCP_HTTP_PORT` | `8001` | Port for streamable-http |
+> [!CAUTION]
+> **API Key Rotation Notice**:
+> The NVIDIA and Serper API keys provided during initial setup and testing were shared in plaintext during development and should be considered exposed. Account owners must rotate both `LLM_JUDGE_API_KEY`, `EMBEDDING_API_KEY`, and `SERPER_API_KEY` in their respective NVIDIA and Serper consoles, and update `.env` accordingly.
 
 ---
 
-## Running Each Server
+## 3. Configuration & Environment Variables
 
-### stdio mode (development — default)
+Copy `.env.example` to `.env` and configure active credentials:
 
-```powershell
-# Server 1 — Observability
-$env:STORE_DB_PATH="./data/store.db"
-..\venv311\Scripts\python server_observability\main.py
-
-# Server 2 — Grounding
-..\venv311\Scripts\python server_grounding\main.py
-
-# Server 3 — Reformulation
-$env:REFORMULATION_API_KEY="..."
-..\venv311\Scripts\python server_reformulation\main.py
+```bash
+cp .env.example .env
 ```
 
-### streamable-http mode (staging)
+| Variable | Description | Default |
+| :--- | :--- | :--- |
+| `CHAT_API_BASE_URL` | Base URL of the staging MahaSamvaad chat API | `http://20.40.56.211:8000` |
+| `CHAT_API_CHAT_PATH` | Path to chat endpoint | `/api/v1/chat` |
+| `STORAGE_API_BASE_URL` | Base URL for fetching source PDFs | `http://20.40.56.211/api/v1/storage` |
+| `LLM_JUDGE_BASE_URL` | Base URL for LLM-as-a-Judge chat completions | `https://integrate.api.nvidia.com/v1` |
+| `LLM_JUDGE_API_KEY` | API key for NVIDIA-hosted judge models | `nvapi-...` |
+| `LLM_JUDGE_MODEL` | Primary judge model | `moonshotai/kimi-k3` |
+| `REFORMULATION_MODEL` | Paraphrase and fallback judge model | `nvidia/nemotron-3.5-lightning-30b-a3b` |
+| `EMBEDDING_API_KEY` | API key for embedding endpoint | `nvapi-...` |
+| `EMBEDDING_MODEL` | Embedding model for grounding v2 | `nvidia/nemotron-3-embed-1b` |
+| `GROUNDING_METHOD` | Grounding scoring algorithm (`embedding_v2` or `difflib_v1`) | `embedding_v2` |
+| `GROUNDING_THRESHOLD`| Cosine similarity threshold to consider sentence grounded | `0.55` |
+| `SERPER_API_KEY` | Google Serper search API key | `...` |
+| `SQLITE_DB_PATH` | SQLite database file location | `./storage/mahasamvaad_eval.db` |
+| `MCP_TRANSPORT` | MCP transport mode (`stdio` or `streamable-http`) | `stdio` |
 
-```powershell
-# Server 1 on port 8001
-..\venv311\Scripts\python server_observability\main.py --transport streamable-http --port 8001
+---
 
-# Server 2 on port 8002
-..\venv311\Scripts\python server_grounding\main.py    --transport streamable-http --port 8002
+## 4. Running the Unified MCP Server
 
-# Server 3 on port 8003
-..\venv311\Scripts\python server_reformulation\main.py --transport streamable-http --port 8003
+### Stdio Transport (Default for Claude / Cursor / Agent IDEs)
+
+```bash
+python server.py --transport stdio
 ```
 
-> **Security (§11):** All servers bind to `127.0.0.1` by default. Never expose them on a public interface. `data/store.db` may contain sensitive query content — exclude from any public repo.
+### Streamable-HTTP Transport (For remote staging / microservices)
 
----
-
-## Tools & Resources
-
-### Server 1 — mahasamvaad-observability
-
-| Name | Type | Description |
-|------|------|-------------|
-| `query_and_log` | Tool | Send a question to `/chat`, always writes to `query_log` |
-| `get_dashboard_stats` | Tool | Latency p50/p90/p99, token cost, volume by group, error rate, outliers |
-| `list_recent_queries` | Tool | Recent rows from `query_log` (limit capped at 500, optional intent filter) |
-| `query_log://recent` | Resource | Last 50 rows, read-only, no live API call |
-
-### Server 2 — mahasamvaad-grounding
-
-| Name | Type | Description |
-|------|------|-------------|
-| `score_grounding` | Tool | difflib_v1 sentence-anchor overlap for a logged `message_id` |
-| `grounding_trend` | Tool | Per-slice mean/median coverage trend, 7-day rolling direction |
-
-### Server 3 — mahasamvaad-reformulation
-
-| Name | Type | Description |
-|------|------|-------------|
-| `generate_paraphrases` | Tool | Gemini-generated variants tagged `formal\|informal\|reorder\|marathi` |
-| `test_reformulation_stability` | Tool | Fires original + variants at `/chat`, compares `gr_number`, stability score |
-
----
-
-## Running Tests
-
-```powershell
-# All unit tests (33 tests, no network required)
-..\venv311\Scripts\pytest tests\ -v
-
-# Phase 5 concurrent-write test
-..\venv311\Scripts\pytest tests\test_concurrent_writes.py -v
-
-# 2. E2E demo (staging + REFORMULATION_API_KEY required)
-$env:REFORMULATION_API_KEY="..."
-$env:STORE_DB_PATH="./data/store.db"
-..\venv311\Scripts\python tests\run_e2e_demo.py
+```bash
+python server.py --transport streamable-http --host 127.0.0.1 --port 8001
 ```
 
 ---
 
-## Database Schema (§4.1)
+## 5. Tool Catalog
 
-Five tables, all created idempotently (`CREATE TABLE IF NOT EXISTS`):
+### Observability & Logging
+- **`observability.query_and_log`** (alias: `query_and_log`): Queries `/chat`, records response, metadata, tokens, latency, and returns structured result.
+- **`observability.get_dashboard_stats`** (alias: `get_dashboard_stats`): Aggregates latency percentiles (p50, p90, p99), daily token trends, volume by intent/dept, error rate, and outliers.
+- **`observability.list_recent_queries`** (alias: `list_recent_queries`): Reads recent rows from `query_log`.
+- **Resource `query_log://recent`** / `query_log://recent{?limit,intent}`: Real-time query log view.
 
-- `query_log` — one row per `/chat` call (written by all 3 servers via shared `mcp_common`)
-- `grounding_scores` — one row per `score_grounding` call (Server 2)
-- `reformulation_runs` — one row per `test_reformulation_stability` call (Server 3)
-- `reformulation_variants` — one row per fired variant (Server 3)
+### Grounding / Citation Coverage (Upgraded `embedding_v2`)
+- **`grounding.score_citation_coverage`** (alias: `score_grounding`): Computes sentence embeddings for generated answers and candidate anchors using `nvidia/nemotron-3-embed-1b`, evaluates max cosine similarity per sentence, caches embeddings in SQLite `embedding_cache`, and computes `coverage_pct`.
+- **`grounding.grounding_trend`** (alias: `grounding_trend`): Aggregates coverage percentiles over time sliced by department or intent.
+
+### Query Reformulation & Stability
+- **`reformulation.generate_paraphrases`** (alias: `generate_paraphrases`): Generates formal, informal, reordered, and Marathi question variants.
+- **`reformulation.test_paraphrase_robustness`** (alias: `test_reformulation_stability`): Executes query and variants against `/chat` (concurrency=3) and compares top retrieved `gr_number` / `filepath`.
+
+### AI-Evaluation Tools (New)
+- **`aieval.detect_hallucinated_entities`**: Uses multilingual regex patterns to extract GR numbers, dates, sections, amounts, and verifies whether each entity is grounded in cited sources.
+- **`aieval.check_lineage_correctness`**: Probes GR supersession / amendment direction against hand-verified `lineage_ground_truth.json`.
+- **`aieval.evaluate_bilingual_parity`**: Evaluates completeness, quality score, and citations between paired English and Marathi questions via LLM-as-a-judge.
+- **`aieval.run_refusal_redteam_suite`**: Probes out-of-state, expired, loaded, and off-topic queries to ensure localized apology / refusal compliance.
+- **`aieval.check_corpus_web_precedence`**: Probes queries with conflicting corpus vs web information to verify that official GR rules take precedence per SRS guidelines.
 
 ---
 
-## Design Notes
+## 6. Extending Calibration Data
 
-- **Option A cross-server wiring (§8):** Servers 2 & 3 import `call_chat` and store functions from `mcp_common` directly — no MCP-to-MCP composition for v1.
-- **Pluggable grounding strategy:** `DifflibV1Strategy` implements `GroundingStrategy` protocol; `embedding_v2` is a clearly marked stretch hook.
-- **Option B (stretch hook):** MCP-to-MCP composition via `ClientSession` — not implemented in v1.
-- **stdout is clean:** All logging goes to stderr only; stdout is reserved for the MCP stdio protocol channel.
-- **Busy-timeout retry:** All DB writes use a 5-retry loop with backoff; SQLite `PRAGMA busy_timeout=5000ms` is set on every connection.
+To add new evaluation cases:
+
+1. **Known Conflicts** (`calibration_data/known_conflict_queries.json`): Add entries with `query`, `corpus_position`, `web_position`, and `expected_behavior`.
+2. **Lineage Ground Truth** (`calibration_data/lineage_ground_truth.json`): Add verified `{gr_number, department, relation_type, target_gr, expected_direction}` entries.
+3. **Bilingual Queries** (`calibration_data/bilingual_query_set.json`): Add paired `{query_en, query_mr, department, key_entities}` entries.
+4. **Adversarial Queries** (`calibration_data/adversarial_queries.json`): Add `{category, query, expected_refusal, reason}` entries.
+5. **Regex Patterns** (`calibration_data/gr_number_date_regex_patterns.py`): Add new departmental regex patterns or date formats.
+
+---
+
+## 7. Running the Test Suite
+
+```bash
+# Run all unit and regression tests
+pytest -v
+
+# Run the live end-to-end smoke test against staging
+python tests/run_e2e_unified_eval.py
+```

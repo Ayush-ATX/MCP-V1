@@ -1,0 +1,86 @@
+[
+  {
+    "id": "conf-001",
+    "query": "Is the beneficiary farmer subsidy for Mukhyamantri Saur Krushi Pump 100% free for all general category farmers?",
+    "corpus_position": "Official GR specifies 90% subsidy for SC/ST and 95% or 90% for small/marginal farmers with a mandatory 5-10% beneficiary contribution; not 100% free for general category.",
+    "web_position": "Certain informal news blogs and social media claim the scheme provides 100% free solar pumps to all farmers unconditionally.",
+    "expected_behavior": "Must prioritize official GR contribution rules and explicitly note web claims of 100% free pumps are inaccurate/unverified."
+  },
+  {
+    "id": "conf-002",
+    "query": "Has the UDCPR building height limit in residential zones across Maharashtra been raised to 100 meters without high-rise committee approval?",
+    "corpus_position": "UDCPR requires specific road-width ratios, fire safety clearance, and Special High-Rise Committee approval for structures exceeding specified heights.",
+    "web_position": "Real estate promotional blogs suggest all height caps have been removed uniformly under new notifications.",
+    "expected_behavior": "Must uphold official UDCPR regulatory mandates regarding road width and High-Rise Committee clearances."
+  },
+  {
+    "id": "conf-003",
+    "query": "What is the maximum financial aid granted under Majhi Kanya Bhagyashree scheme on the birth of a second girl child?",
+    "corpus_position": "Official GR prescribes Rs. 25,000 for each of the two girl children in a family after family planning operation.",
+    "web_position": "Multiple third-party aggregator portals report Rs. 50,000 or Rs. 1,00,000 lump sum amounts erroneously.",
+    "expected_behavior": "Must cite official GR payout structure while clarifying discrepancy with third-party web portals."
+  },
+  {
+    "id": "conf-004",
+    "query": "Is there an exemption from paying stamp duty on agricultural land purchase for women farmers across Maharashtra?",
+    "corpus_position": "Revenue Department GR grants a 1% concession in stamp duty for female buyers in specific categories, but not a total 100% exemption across all transactions.",
+    "web_position": "Viral news snippets often proclaim 0% stamp duty for women purchasers unconditionally.",
+    "expected_behavior": "Must detail exact 1% concession guidelines per Revenue GR and refute total exemption rumors."
+  },
+  {
+    "id": "conf-005",
+    "query": "What is the maximum area entitlement for constructing a farm pond under Magel Tyala Shettale without prior technical survey?",
+    "corpus_position": "Agriculture GR requires technical feasibility, geo-tagging, and limits sizes (e.g. 30x30x3 meters) based on land holding size.",
+    "web_position": "Informal agriculture forums claim farmers can build any dimension pond anywhere on their land without prior survey.",
+    "expected_behavior": "Must affirm technical verification requirement stated in corpus GR."
+  },
+  {
+    "id": "conf-006",
+    "query": "What is the annual income limit for the Mahatma Jyotirao Phule Jan Arogya Yojana health insurance coverage?",
+    "corpus_position": "Government Resolution expanded coverage to all ration card holders (yellow/orange/white) with specified sum assured of Rs. 5 Lakhs per family per year.",
+    "web_position": "Older web articles still cite outdated Rs. 1 Lakh income cap and old Rs. 1.5 Lakh sum insured limit.",
+    "expected_behavior": "Must cite latest GR entitlement of Rs. 5 Lakh and note historical/outdated web figures."
+  },
+  {
+    "id": "conf-007",
+    "query": "Can Transferable Development Rights (TDR) be generated from non-congested agricultural zones in D-class municipal corporations?",
+    "corpus_position": "UDCPR rules strictly regulate TDR origin zones to designated reservation plots, road widening, and heritage sites, not arbitrary non-congested agri zones.",
+    "web_position": "Real estate broker forums suggest unrestricted TDR generation across all outlying zones.",
+    "expected_behavior": "Must cite UDCPR Chapter 11 TDR regulations as authoritative."
+  },
+  {
+    "id": "conf-008",
+    "query": "Are farmers required to pay any application fee on the MahaDBT portal for tractor subsidy applications?",
+    "corpus_position": "Corpus GR specifies a nominal non-refundable lottery processing fee (Rs. 20 + GST) on MahaDBT portal.",
+    "web_position": "Some web guides claim the application is entirely free of all portal processing fees.",
+    "expected_behavior": "Must verify exact MahaDBT fee structure according to Agriculture Department circulars."
+  },
+  {
+    "id": "conf-009",
+    "query": "What is the compensation rate per hectare for monsoon flood crop loss declared under the 2023 disaster relief GR?",
+    "corpus_position": "Relief and Rehabilitation GR specifies exact SDRF/NDRF norm revisions (e.g. Rs. 13,600/ha for rainfed, Rs. 27,000/ha for irrigated up to 3 hectares).",
+    "web_position": "Political rally speeches reported online cite promise of Rs. 50,000/ha flat compensation.",
+    "expected_behavior": "Must cite official disaster relief GR rates as binding over unverified speech promises."
+  },
+  {
+    "id": "conf-010",
+    "query": "Is rooftop solar installation mandatory for all existing independent houses in municipal council areas under UDCPR?",
+    "corpus_position": "UDCPR mandates solar water heating/rooftop solar only for plots/buildings above specified built-up area thresholds (e.g. >100 sq.m or multi-dwelling), not small existing independent houses.",
+    "web_position": "Eco-blog posts claim 100% of residential structures in Maharashtra face disconnection if rooftop solar is missing.",
+    "expected_behavior": "Must cite UDCPR threshold provisions and clarify false web alarm."
+  },
+  {
+    "id": "conf-011",
+    "query": "What is the maximum age limit for applying to the Babasaheb Ambedkar Swadhar Yojana for higher education?",
+    "corpus_position": "Social Justice GR specifies age limits aligned with university admission criteria and category relaxations (typically up to 28/30 years).",
+    "web_position": "Web exam portals often copy age limits from central civil service exams (35-40 years) incorrectly.",
+    "expected_behavior": "Must adhere to Social Justice Department scheme parameters."
+  },
+  {
+    "id": "conf-012",
+    "query": "Does the Maharashtra Tree Authority allow felling of heritage trees (over 50 years) with only compensatory plantation of 1 sapling?",
+    "corpus_position": "Maharashtra (Urban Areas) Protection and Preservation of Trees Amendment Act mandates compensatory planting equal to the age of the felled heritage tree.",
+    "web_position": "General tree cutting guides claim 1:1 or 1:3 ratio applies uniformly to all trees.",
+    "expected_behavior": "Must cite the Heritage Tree Protection legislation requiring saplings equal to tree age."
+  }
+]

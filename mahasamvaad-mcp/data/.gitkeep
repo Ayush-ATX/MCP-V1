@@ -1,2 +1,0 @@
-# data directory — store.db is created here at runtime
-# Excluded from VCS (see .gitignore) — may contain sensitive query content (§11)

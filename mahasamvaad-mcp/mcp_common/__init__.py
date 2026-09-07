@@ -1,1 +1,0 @@
-# mcp_common package

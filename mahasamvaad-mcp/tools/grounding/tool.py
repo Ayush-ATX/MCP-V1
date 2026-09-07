@@ -316,23 +316,8 @@ def register(mcp: MCPServer) -> None:
         description="Score citation coverage of a logged message_id using embedding_v2 (or difflib_v1 fallback).",
     )(handle_score_grounding)
 
-    mcp.tool(
-        name="grounding.score_grounding",
-        description="Alias for grounding.score_citation_coverage.",
-    )(handle_score_grounding)
-
-    mcp.tool(
-        name="score_grounding",
-        description="Backwards-compatible alias for score_grounding.",
-    )(handle_score_grounding)
-
     # Namespaced tool: grounding.grounding_trend
     mcp.tool(
         name="grounding.grounding_trend",
         description="Aggregate citation coverage trends over time sliced by department, intent, or route_hint.",
-    )(handle_grounding_trend)
-
-    mcp.tool(
-        name="grounding_trend",
-        description="Backwards-compatible alias for grounding_trend.",
     )(handle_grounding_trend)

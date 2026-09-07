@@ -280,18 +280,8 @@ def register(mcp: MCPServer) -> None:
         description="Generate N paraphrases of a question tagged formal | informal | reorder | marathi.",
     )(handle_generate_paraphrases)
 
-    mcp.tool(
-        name="generate_paraphrases",
-        description="Backwards-compatible alias for generate_paraphrases.",
-    )(handle_generate_paraphrases)
-
     # Namespaced tool: reformulation.test_paraphrase_robustness
     mcp.tool(
         name="reformulation.test_paraphrase_robustness",
         description="Fire query + variants at /chat, compare top GR numbers, compute stability score.",
-    )(handle_test_paraphrase_robustness)
-
-    mcp.tool(
-        name="test_reformulation_stability",
-        description="Backwards-compatible alias for test_paraphrase_robustness.",
     )(handle_test_paraphrase_robustness)

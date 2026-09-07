@@ -287,31 +287,16 @@ def register(mcp: MCPServer) -> None:
         description="Send a question to MahaSamvaad /chat endpoint and log to query_log. Always writes a row.",
     )(handle_query_and_log)
 
-    mcp.tool(
-        name="query_and_log",
-        description="Alias for observability.query_and_log.",
-    )(handle_query_and_log)
-
     # Tool: get_dashboard_stats
     mcp.tool(
         name="observability.get_dashboard_stats",
         description="Return aggregated analytics over query_log: latency, tokens, volume, error rate, outliers.",
     )(handle_get_dashboard_stats)
 
-    mcp.tool(
-        name="get_dashboard_stats",
-        description="Alias for observability.get_dashboard_stats.",
-    )(handle_get_dashboard_stats)
-
     # Tool: list_recent_queries
     mcp.tool(
         name="observability.list_recent_queries",
         description="Read recent rows from query_log. limit: max rows (capped at 500).",
-    )(handle_list_recent_queries)
-
-    mcp.tool(
-        name="list_recent_queries",
-        description="Alias for observability.list_recent_queries.",
     )(handle_list_recent_queries)
 
     # Resources

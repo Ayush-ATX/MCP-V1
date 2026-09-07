@@ -1,6 +1,7 @@
 """tools/bilingual_parity/tool.py — Bilingual Parity Evaluator (EN vs MR) (§3.3)."""
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from datetime import datetime, timezone
@@ -10,7 +11,7 @@ from typing import Any
 from mcp.server.mcpserver import MCPServer
 
 import config
-from clients.chat_api_client import call_chat
+from clients.chat_api_client import ChatResult, call_chat
 from clients.llm_judge_client import default_judge_client
 from storage.db import execute_with_retry, get_db
 
@@ -34,7 +35,12 @@ _JUDGE_RUBRIC_PROMPT = """You are an expert bilingual government policy evaluato
 Query: {query}
 Response: {response}
 
-Rate this answer on a scale from 1.0 to 10.0 (where 10.0 is complete, factually accurate, and well-structured).
+Evaluation Criteria:
+1. Factual completeness and correctness regarding Maharashtra government schemes/resolutions.
+2. Clarity, structure, and precision of information.
+3. Appropriate citations and reference numbers.
+
+Rate this answer on a scale from 1.0 to 10.0 (where 10.0 is complete, factually accurate, and well-structured; 1.0 is completely inaccurate or irrelevant).
 Return valid JSON only with exact structure:
 {{
   "score": 8.5,
@@ -42,66 +48,178 @@ Return valid JSON only with exact structure:
 }}"""
 
 
+def _get_source_id(src: dict[str, Any]) -> str:
+    """Return a canonical identifier for a source."""
+    if src.get("gr_number"):
+        return str(src["gr_number"]).strip().lower()
+    if src.get("filename"):
+        return str(src["filename"]).strip().lower()
+    if src.get("filepath"):
+        return str(src["filepath"]).strip().lower()
+    if src.get("source_pdf_url"):
+        return str(src["source_pdf_url"]).strip().lower()
+    if src.get("citation_id") is not None:
+        return f"citation_{src['citation_id']}"
+    return json.dumps(src, sort_keys=True)
+
+
+def _clean_source_for_output(src: dict[str, Any]) -> dict[str, Any]:
+    """Return a concise source dictionary without internal anchor arrays or grounding tokens."""
+    clean: dict[str, Any] = {}
+    for key in ("citation_id", "gr_number", "filename", "filepath", "date", "department", "page_number", "source_pdf_url"):
+        val = src.get(key)
+        if val is not None:
+            clean[key] = val
+    if not clean and isinstance(src, dict):
+        clean = {k: v for k, v in src.items() if k not in ("anchors", "anchor_id", "start_text", "end_text", "blocks_url", "raw_file_id")}
+    return clean
+
+
+def _compare_bilingual_sources(
+    sources_en: list[dict[str, Any]],
+    sources_mr: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Compare retrieved sources between English and Marathi agent responses and return concise sources."""
+    map_en = {_get_source_id(s): s for s in sources_en if isinstance(s, dict)}
+    map_mr = {_get_source_id(s): s for s in sources_mr if isinstance(s, dict)}
+
+    keys_en = set(map_en.keys())
+    keys_mr = set(map_mr.keys())
+
+    common_keys = sorted(keys_en & keys_mr)
+    en_only_keys = sorted(keys_en - keys_mr)
+    mr_only_keys = sorted(keys_mr - keys_en)
+
+    return {
+        "sources_count_en": len(sources_en),
+        "sources_count_mr": len(sources_mr),
+        "common_sources": [_clean_source_for_output(map_en[k]) for k in common_keys],
+        "english_only_sources": [_clean_source_for_output(map_en[k]) for k in en_only_keys],
+        "marathi_only_sources": [_clean_source_for_output(map_mr[k]) for k in mr_only_keys],
+    }
+
+
 async def handle_evaluate_bilingual_parity(
     query_en: str | None = None,
     query_mr: str | None = None,
+    pairs: list[dict[str, Any]] | None = None,
     gap_threshold: float = 0.15,
 ) -> dict[str, Any]:
     """Evaluate bilingual parity between English and Marathi responses using LLM-as-a-judge."""
     try:
-        pairs: list[dict[str, Any]] = []
-        if query_en and query_mr:
-            pairs.append({"id": "custom", "query_en": query_en, "query_mr": query_mr})
+        query_pairs: list[dict[str, Any]] = []
+        if pairs:
+            query_pairs = pairs
+        elif query_en and query_mr:
+            query_pairs = [{"id": "custom", "query_en": query_en, "query_mr": query_mr}]
         else:
-            pairs = _load_bilingual_queries()
+            query_pairs = _load_bilingual_queries()
 
-        if not pairs:
-            return {"ok": True, "evaluated_pairs": 0, "results": [], "message": "No bilingual query pairs provided or found"}
+        if not query_pairs:
+            return {
+                "ok": True,
+                "total_pairs_evaluated": 0,
+                "passed_count": 0,
+                "failed_count": 0,
+                "parity_pass_rate_pct": 0.0,
+                "gap_threshold": gap_threshold,
+                "results": [],
+                "message": "No bilingual query pairs provided or found",
+            }
 
         results: list[dict[str, Any]] = []
         now_iso = datetime.now(timezone.utc).isoformat()
         conn = await get_db()
         try:
-            for item in pairs:
-                q_en = item["query_en"]
-                q_mr = item["query_mr"]
+            for item in query_pairs:
+                q_en = item.get("query_en", "")
+                q_mr = item.get("query_mr", "")
+                pair_id = item.get("id", "pair")
 
-                # 1. Fire chat calls for both languages
-                res_en = await call_chat(q_en, web_search=True)
-                res_mr = await call_chat(q_mr, web_search=True)
+                # 1. Fire chat calls for both languages concurrently with graceful timeout handling
+                try:
+                    chat_task_en = call_chat(q_en, web_search=True)
+                    chat_task_mr = call_chat(q_mr, web_search=True)
+                    res_en_raw, res_mr_raw = await asyncio.gather(
+                        chat_task_en, chat_task_mr, return_exceptions=True
+                    )
+                except Exception as exc:
+                    logger.warning("Bilingual pair %s chat dispatch error: %s", pair_id, exc)
+                    res_en_raw = exc
+                    res_mr_raw = exc
+
+                # Parse English chat result
+                if isinstance(res_en_raw, ChatResult):
+                    res_en = res_en_raw
+                elif isinstance(res_en_raw, Exception):
+                    res_en = ChatResult(ok=False, error=str(res_en_raw))
+                else:
+                    res_en = ChatResult(ok=False, error="Unknown English response error")
+
+                # Parse Marathi chat result
+                if isinstance(res_mr_raw, ChatResult):
+                    res_mr = res_mr_raw
+                elif isinstance(res_mr_raw, Exception):
+                    res_mr = ChatResult(ok=False, error=str(res_mr_raw))
+                else:
+                    res_mr = ChatResult(ok=False, error="Unknown Marathi response error")
 
                 ans_en = res_en.response or ""
                 ans_mr = res_mr.response or ""
-                src_count_en = len(res_en.sources) if res_en.ok else 0
-                src_count_mr = len(res_mr.sources) if res_mr.ok else 0
+                sources_en = res_en.sources if res_en.ok else []
+                sources_mr = res_mr.sources if res_mr.ok else []
 
-                # 2. LLM judge evaluations for both
-                judge_en = await default_judge_client.evaluate_json(
+                # Source-level comparison (with concise source objects)
+                source_comp = _compare_bilingual_sources(sources_en, sources_mr)
+
+                # 2. LLM judge evaluations for both responses concurrently
+                judge_task_en = default_judge_client.evaluate_json(
                     _JUDGE_RUBRIC_PROMPT.format(query=q_en, response=ans_en[:1500])
                 )
-                judge_mr = await default_judge_client.evaluate_json(
+                judge_task_mr = default_judge_client.evaluate_json(
                     _JUDGE_RUBRIC_PROMPT.format(query=q_mr, response=ans_mr[:1500])
                 )
+                judge_en, judge_mr = await asyncio.gather(judge_task_en, judge_task_mr)
 
-                score_en = float(judge_en.score or 7.0 if judge_en.ok else 7.0)
-                score_mr = float(judge_mr.score or 7.0 if judge_mr.ok else 7.0)
+                # Score extraction
+                score_en = judge_en.score if (judge_en.ok and judge_en.score is not None) else None
+                score_mr = judge_mr.score if (judge_mr.ok and judge_mr.score is not None) else None
 
-                # Relative gap: positive means English scored higher than Marathi
-                gap = (score_en - score_mr) / max(score_en, 1.0)
-                parity_passed = gap <= gap_threshold
+                # Relative gap: normalize by maximum score
+                if score_en is not None and score_mr is not None:
+                    max_score = max(score_en, score_mr, 1.0)
+                    gap = round(abs(score_en - score_mr) / max_score, 3)
+                    parity_passed = gap <= gap_threshold
+                else:
+                    gap = None
+                    parity_passed = False
+
+                error_msg = None
+                if not res_en.ok:
+                    error_msg = f"English agent query failed: {res_en.error}"
+                elif not res_mr.ok:
+                    error_msg = f"Marathi agent query failed: {res_mr.error}"
+                elif not judge_en.ok:
+                    error_msg = f"English judge failed: {judge_en.error}"
+                elif not judge_mr.ok:
+                    error_msg = f"Marathi judge failed: {judge_mr.error}"
 
                 pair_res = {
-                    "id": item.get("id", "pair"),
+                    "id": pair_id,
                     "query_en": q_en,
                     "query_mr": q_mr,
-                    "score_en": round(score_en, 2),
-                    "score_mr": round(score_mr, 2),
-                    "gap": round(gap, 3),
+                    "score_en": score_en,
+                    "score_mr": score_mr,
+                    "gap": gap,
                     "parity_passed": parity_passed,
-                    "sources_count_en": src_count_en,
-                    "sources_count_mr": src_count_mr,
-                    "rationale_en": judge_en.rationale,
-                    "rationale_mr": judge_mr.rationale,
+                    "sources_count_en": source_comp["sources_count_en"],
+                    "sources_count_mr": source_comp["sources_count_mr"],
+                    "common_sources": source_comp["common_sources"],
+                    "english_only_sources": source_comp["english_only_sources"],
+                    "marathi_only_sources": source_comp["marathi_only_sources"],
+                    "rationale_en": judge_en.rationale or (f"Judge error: {judge_en.error}" if not judge_en.ok else None),
+                    "rationale_mr": judge_mr.rationale or (f"Judge error: {judge_mr.error}" if not judge_mr.ok else None),
+                    "error": error_msg,
                 }
                 results.append(pair_res)
 
@@ -119,9 +237,9 @@ async def handle_evaluate_bilingual_parity(
                         q_mr,
                         score_en,
                         score_mr,
-                        round(gap, 3),
-                        src_count_en,
-                        src_count_mr,
+                        gap,
+                        source_comp["sources_count_en"],
+                        source_comp["sources_count_mr"],
                         1 if parity_passed else 0,
                         json.dumps(pair_res, ensure_ascii=False),
                         now_iso,
@@ -154,9 +272,4 @@ def register(mcp: MCPServer) -> None:
     mcp.tool(
         name="aieval.evaluate_bilingual_parity",
         description="Compare quality, completeness, and citations between English and Marathi response pairs using LLM-as-a-judge.",
-    )(handle_evaluate_bilingual_parity)
-
-    mcp.tool(
-        name="evaluate_bilingual_parity",
-        description="Backwards-compatible alias for aieval.evaluate_bilingual_parity.",
     )(handle_evaluate_bilingual_parity)

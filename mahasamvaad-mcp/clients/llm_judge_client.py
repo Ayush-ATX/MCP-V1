@@ -49,8 +49,15 @@ class LLMJudgeClient:
         fallback_model: str | None = None,
     ) -> None:
         self.base_url = (base_url or config.LLM_JUDGE_BASE_URL).rstrip("/")
-        self.api_key = api_key or config.LLM_JUDGE_API_KEY
-        self.primary_model = primary_model or config.LLM_JUDGE_MODEL
+        self.api_key = (
+            api_key
+            or config.LLM_JUDGE_API_KEY
+            or config.REFORMULATION_API_KEY
+            or os.environ.get("LLM_JUDGE_API_KEY")
+            or os.environ.get("REFORMULATION_API_KEY")
+            or os.environ.get("NVIDIA_API_KEY", "")
+        )
+        self.primary_model = primary_model or config.LLM_JUDGE_MODEL or "nvidia/nemotron-3.5-lightning-30b-a3b"
         self.fallback_model = fallback_model or config.REFORMULATION_MODEL or "nvidia/nemotron-3.5-lightning-30b-a3b"
 
     async def evaluate_json(
@@ -61,7 +68,15 @@ class LLMJudgeClient:
         max_tokens: int = 2048,
     ) -> JudgeEvaluationResult:
         """Call LLM judge and strictly parse JSON output with fallback model retry."""
-        if not self.api_key:
+        active_api_key = (
+            self.api_key
+            or config.LLM_JUDGE_API_KEY
+            or config.REFORMULATION_API_KEY
+            or os.environ.get("LLM_JUDGE_API_KEY")
+            or os.environ.get("REFORMULATION_API_KEY")
+            or os.environ.get("NVIDIA_API_KEY", "")
+        )
+        if not active_api_key:
             return JudgeEvaluationResult(
                 ok=False,
                 error="LLM_JUDGE_API_KEY is not set",
@@ -72,14 +87,24 @@ class LLMJudgeClient:
             messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": prompt})
 
-        models_to_try = [self.primary_model]
-        if self.fallback_model and self.fallback_model != self.primary_model:
+        models_to_try: list[str] = []
+        if self.primary_model:
+            models_to_try.append(self.primary_model)
+        if self.fallback_model and self.fallback_model not in models_to_try:
             models_to_try.append(self.fallback_model)
+        if not models_to_try:
+            models_to_try.append("nvidia/nemotron-3.5-lightning-30b-a3b")
 
         last_error: str | None = None
         for model in models_to_try:
             try:
-                raw_response = await self._call_model(messages, model=model, temperature=temperature, max_tokens=max_tokens)
+                raw_response = await self._call_model(
+                    messages,
+                    api_key=active_api_key,
+                    model=model,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                )
                 if not raw_response:
                     continue
 
@@ -88,10 +113,14 @@ class LLMJudgeClient:
                     parsed = json.loads(cleaned_json)
                     if isinstance(parsed, dict):
                         score_val = parsed.get("score") or parsed.get("rating") or parsed.get("confidence")
-                        try:
-                            score_float = float(score_val) if score_val is not None else None
-                        except (ValueError, TypeError):
-                            score_float = None
+                        score_float: float | None = None
+                        if score_val is not None:
+                            try:
+                                if isinstance(score_val, str) and "/" in score_val:
+                                    score_val = score_val.split("/")[0].strip()
+                                score_float = float(score_val)
+                            except (ValueError, TypeError):
+                                score_float = None
 
                         rationale_val = (
                             parsed.get("rationale")
@@ -124,17 +153,17 @@ class LLMJudgeClient:
     async def _call_model(
         self,
         messages: list[dict[str, str]],
+        api_key: str,
         model: str,
         temperature: float,
         max_tokens: int,
     ) -> str:
         """Synchronous chat completion executed in a worker thread with fast failover."""
         def _sync() -> str:
-            # Fast 15s timeout and no internal SDK retry loop to allow fast fallback
             client = OpenAI(
                 base_url=self.base_url,
-                api_key=self.api_key,
-                timeout=15.0,
+                api_key=api_key,
+                timeout=20.0,
                 max_retries=0,
             )
             extra_body = None

@@ -159,8 +159,3 @@ def register(mcp: MCPServer) -> None:
         name="aieval.check_corpus_web_precedence",
         description="Verify that official Government Resolutions take precedence over conflicting web results per SRS fusion rules.",
     )(handle_check_corpus_web_precedence)
-
-    mcp.tool(
-        name="check_corpus_web_precedence",
-        description="Backwards-compatible alias for aieval.check_corpus_web_precedence.",
-    )(handle_check_corpus_web_precedence)

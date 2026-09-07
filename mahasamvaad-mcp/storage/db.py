@@ -36,10 +36,18 @@ async def get_db(db_path: str | None = None) -> aiosqlite.Connection:
     await apply_schema(conn)
 
     if not _db_initialized:
-        # Check legacy database if different
-        legacy_cand = Path(config.STORE_DB_PATH).resolve()
-        if legacy_cand != db_file and legacy_cand.is_file():
-            await migrate_legacy_db(conn, legacy_cand)
+        # Check legacy database locations if different from active DB
+        legacy_candidates = [
+            Path("./data/store.db").resolve(),
+            Path(Path(__file__).resolve().parent.parent / "data" / "store.db").resolve(),
+        ]
+        if config.STORE_DB_PATH:
+            legacy_candidates.insert(0, Path(config.STORE_DB_PATH).resolve())
+
+        for legacy_cand in legacy_candidates:
+            if legacy_cand != db_file and legacy_cand.is_file():
+                await migrate_legacy_db(conn, legacy_cand)
+                break
         _db_initialized = True
 
     return conn

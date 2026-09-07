@@ -96,20 +96,20 @@ python server.py --transport streamable-http --host 127.0.0.1 --port 8001
 ## 5. Tool Catalog
 
 ### Observability & Logging
-- **`observability.query_and_log`** (alias: `query_and_log`): Queries `/chat`, records response, metadata, tokens, latency, and returns structured result.
-- **`observability.get_dashboard_stats`** (alias: `get_dashboard_stats`): Aggregates latency percentiles (p50, p90, p99), daily token trends, volume by intent/dept, error rate, and outliers.
-- **`observability.list_recent_queries`** (alias: `list_recent_queries`): Reads recent rows from `query_log`.
+- **`observability.query_and_log`**: Queries `/chat`, records response, metadata, tokens, latency, and returns structured result.
+- **`observability.get_dashboard_stats`**: Aggregates latency percentiles (p50, p90, p99), daily token trends, volume by intent/dept, error rate, and outliers.
+- **`observability.list_recent_queries`**: Reads recent rows from `query_log`.
 - **Resource `query_log://recent`** / `query_log://recent{?limit,intent}`: Real-time query log view.
 
 ### Grounding / Citation Coverage (Upgraded `embedding_v2`)
-- **`grounding.score_citation_coverage`** (alias: `score_grounding`): Computes sentence embeddings for generated answers and candidate anchors using `nvidia/nemotron-3-embed-1b`, evaluates max cosine similarity per sentence, caches embeddings in SQLite `embedding_cache`, and computes `coverage_pct`.
-- **`grounding.grounding_trend`** (alias: `grounding_trend`): Aggregates coverage percentiles over time sliced by department or intent.
+- **`grounding.score_citation_coverage`**: Computes sentence embeddings for generated answers and candidate anchors using `nvidia/nemotron-3-embed-1b`, evaluates max cosine similarity per sentence, caches embeddings in SQLite `embedding_cache`, and computes `coverage_pct`.
+- **`grounding.grounding_trend`**: Aggregates coverage percentiles over time sliced by department or intent.
 
 ### Query Reformulation & Stability
-- **`reformulation.generate_paraphrases`** (alias: `generate_paraphrases`): Generates formal, informal, reordered, and Marathi question variants.
-- **`reformulation.test_paraphrase_robustness`** (alias: `test_reformulation_stability`): Executes query and variants against `/chat` (concurrency=3) and compares top retrieved `gr_number` / `filepath`.
+- **`reformulation.generate_paraphrases`**: Generates formal, informal, reordered, and Marathi question variants.
+- **`reformulation.test_paraphrase_robustness`**: Executes query and variants against `/chat` (concurrency=3) and compares top retrieved `gr_number` / `filepath`.
 
-### AI-Evaluation Tools (New)
+### AI-Evaluation Tools
 - **`aieval.detect_hallucinated_entities`**: Uses multilingual regex patterns to extract GR numbers, dates, sections, amounts, and verifies whether each entity is grounded in cited sources.
 - **`aieval.check_lineage_correctness`**: Probes GR supersession / amendment direction against hand-verified `lineage_ground_truth.json`.
 - **`aieval.evaluate_bilingual_parity`**: Evaluates completeness, quality score, and citations between paired English and Marathi questions via LLM-as-a-judge.

@@ -1,6 +1,7 @@
 """tools/lineage_correctness/tool.py — Lineage & Supersession Correctness Checker (§3.2)."""
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
@@ -11,13 +12,14 @@ from typing import Any
 from mcp.server.mcpserver import MCPServer
 
 import config
-from clients.chat_api_client import call_chat
+from clients.chat_api_client import ChatResult, call_chat
 from clients.storage_client import fetch_document
 from storage.db import execute_with_retry, get_db
 
 logger = logging.getLogger(__name__)
 
 _GROUND_TRUTH_FILE = Path(__file__).resolve().parent.parent.parent / "calibration_data" / "lineage_ground_truth.json"
+DEV_TO_ASCII = str.maketrans("०१२३४५६७८९", "0123456789")
 
 
 def _load_ground_truth() -> list[dict[str, Any]]:
@@ -30,17 +32,76 @@ def _load_ground_truth() -> list[dict[str, Any]]:
     return []
 
 
+def _normalize_rel_name(verb: str) -> str:
+    """Map natural language and Marathi relation keywords to canonical relation types."""
+    v = verb.lower()
+    if any(kw in v for kw in ("supersede", "अधिक्रमित", "superseded")):
+        return "supersedes"
+    if any(kw in v for kw in ("amend", "सुधारणा", "amended")):
+        return "amends"
+    if any(kw in v for kw in ("revoke", "रद्द", "revoked", "cancel")):
+        return "revokes"
+    return v
+
+
 def _extract_relations_from_text(text: str) -> list[dict[str, str]]:
-    """Heuristic extraction of supersession/amendment relations from text."""
+    """Extract supersession, amendment, and revocation relations from prose text."""
+    if not text:
+        return []
+
+    t = text.translate(DEV_TO_ASCII)
     relations: list[dict[str, str]] = []
-    # Pattern: X supersedes Y / X amends Y / X revokes Y
-    pat = re.compile(r"(\d{8,18}|[A-Za-z0-9\-\/]+)\s+(supersedes|amends|revokes|superseded\s+by|amended\s+by|revoked\s+by|अधिक्रमित\s+करतो|दुरुस्ती\s+करतो)\s+(\d{8,18}|[A-Za-z0-9\-\/]+)", re.IGNORECASE)
-    for m in pat.finditer(text):
-        source = m.group(1).strip()
-        rel = m.group(2).strip().lower()
-        target = m.group(3).strip()
-        relations.append({"source": source, "relation": rel, "target": target})
-    return relations
+
+    # 1. Active: X (supersedes / amends / revokes) [optional intervening words] Y
+    pat_active = re.compile(
+        r"\b(\d{8,18}|[A-Za-z0-9\-\/]+)\s+(?:has\s+been\s+issued\s+to\s+|was\s+issued\s+to\s+|hereby\s+)?"
+        r"(supersedes?|amends?|revokes?|अधिक्रमित\s+(?:करतो|करून|केले)|सुधारणा\s+(?:करतो|करून|केली)|रद्द\s+(?:करतो|करून|केले))\s+"
+        r"(?:the\s+earlier\s+resolution\s+|the\s+previous\s+(?:GR|resolution)\s+|earlier\s+|previous\s+|GR\s+|Government\s+Resolution\s+|शासन\s+निर्णय\s+क्र\.?\s*)?"
+        r"(\d{8,18}|[A-Za-z0-9\-\/]+)\b",
+        re.IGNORECASE,
+    )
+    for m in pat_active.finditer(t):
+        src, verb, tgt = m.group(1).strip(), m.group(2).strip(), m.group(3).strip()
+        rel = _normalize_rel_name(verb)
+        if src != tgt:
+            relations.append({"source": src, "relation": rel, "target": tgt})
+
+    # 2. Passive: Y was superseded / amended / revoked by X
+    pat_passive = re.compile(
+        r"\b(\d{8,18}|[A-Za-z0-9\-\/]+)\s+(?:was|is|has\s+been)\s+(superseded|amended|revoked)\s+by\s+"
+        r"(?:the\s+later\s+resolution\s+|GR\s+|Government\s+Resolution\s+|शासन\s+निर्णय\s+क्र\.?\s*)?"
+        r"(\d{8,18}|[A-Za-z0-9\-\/]+)\b",
+        re.IGNORECASE,
+    )
+    for m in pat_passive.finditer(t):
+        tgt, verb, src = m.group(1).strip(), m.group(2).strip(), m.group(3).strip()
+        rel = _normalize_rel_name(verb)
+        if src != tgt:
+            relations.append({"source": src, "relation": rel, "target": tgt})
+
+    # 3. Prepositional: In supersession of Y, X was issued
+    pat_prep = re.compile(
+        r"\b(?:in\s+supersession\s+of|in\s+amendment\s+(?:of|to)|revoking|च्या\s+अधिक्रमणास्तव)\s+"
+        r"(?:GR\s+|Government\s+Resolution\s+|शासन\s+निर्णय\s+क्र\.?\s*)?(\d{8,18}|[A-Za-z0-9\-\/]+)[,\s]+"
+        r"(?:the\s+government\s+issued\s+|issued\s+)?(?:GR\s+|Government\s+Resolution\s+)?(\d{8,18}|[A-Za-z0-9\-\/]+)\b",
+        re.IGNORECASE,
+    )
+    for m in pat_prep.finditer(t):
+        tgt, src = m.group(1).strip(), m.group(2).strip()
+        rel = "supersedes" if "supersession" in m.group(0).lower() or "अधिक्रमण" in m.group(0) else ("amends" if "amendment" in m.group(0).lower() else "revokes")
+        if src != tgt:
+            relations.append({"source": src, "relation": rel, "target": tgt})
+
+    # Deduplicate while preserving order
+    unique_rels: list[dict[str, str]] = []
+    seen = set()
+    for r in relations:
+        key = (r["source"], r["relation"], r["target"])
+        if key not in seen:
+            seen.add(key)
+            unique_rels.append(r)
+
+    return unique_rels
 
 
 async def handle_check_lineage_correctness(
@@ -59,43 +120,29 @@ async def handle_check_lineage_correctness(
             if m:
                 target_gr = m.group(1)
 
-        # 1. Fire chat call if query or GR is specified
-        prompt = query or f"What is the status and supersession lineage of Maharashtra Government Resolution {target_gr}?"
-        chat_res = await call_chat(prompt, web_search=False)
-
-        raw_meta = chat_res.raw_response.get("metadata", {}) if (chat_res.ok and chat_res.raw_response) else {}
-        lineage_meta = raw_meta.get("lineages") or raw_meta.get("lineage_data") or []
-        response_text = chat_res.response or ""
-
-        # Extract claimed relations
-        claimed_relations: list[dict[str, str]] = []
-        if isinstance(lineage_meta, list):
-            for item in lineage_meta:
-                if isinstance(item, dict):
-                    claimed_relations.append({
-                        "source": str(item.get("source_gr") or item.get("gr_number") or ""),
-                        "relation": str(item.get("relation_type") or item.get("relation") or ""),
-                        "target": str(item.get("target_gr") or item.get("supersedes") or item.get("amends") or ""),
-                    })
-
-        text_relations = _extract_relations_from_text(response_text)
-        for tr in text_relations:
-            if tr not in claimed_relations:
-                claimed_relations.append(tr)
-
-        # 2. Compare against ground truth
-        matched_gt_cases = []
+        # Select which cases to evaluate
         if target_gr:
             matched_gt_cases = [gt for gt in ground_truth if gt.get("gr_number") == target_gr]
             if not matched_gt_cases:
                 matched_gt_cases = [gt for gt in ground_truth if gt.get("target_gr") == target_gr]
+            if not matched_gt_cases:
+                # Custom GR provided not in ground truth
+                matched_gt_cases = [{
+                    "id": "custom",
+                    "gr_number": target_gr,
+                    "relation_type": "supersedes",
+                    "target_gr": "unknown",
+                    "expected_direction": f"{target_gr} supersedes unknown",
+                }]
         else:
             matched_gt_cases = ground_truth
 
-
         eval_results: list[dict[str, Any]] = []
+        all_claimed_relations: list[dict[str, str]] = []
+        doc_verification = None
         now_iso = datetime.now(timezone.utc).isoformat()
         conn = await get_db()
+
         try:
             for gt in matched_gt_cases:
                 gt_gr = gt.get("gr_number", "")
@@ -103,7 +150,39 @@ async def handle_check_lineage_correctness(
                 gt_rel = gt.get("relation_type", "")
                 expected_dir = gt.get("expected_direction", f"{gt_gr} {gt_rel} {gt_target}")
 
-                # Check if claimed correctly or reversed
+                # Formulate probe prompt for this specific GR
+                prompt = query if query and target_gr == gt_gr else f"What is the supersession, amendment, or revocation lineage of Maharashtra Government Resolution {gt_gr}?"
+                chat_res = await call_chat(prompt, web_search=False)
+
+                claimed_relations: list[dict[str, str]] = []
+                if chat_res.ok and chat_res.raw_response:
+                    raw_meta = chat_res.raw_response.get("metadata", {})
+                    lineage_meta = raw_meta.get("lineages") or raw_meta.get("lineage_data") or []
+                    if isinstance(lineage_meta, list):
+                        for item in lineage_meta:
+                            if isinstance(item, dict):
+                                src_val = str(item.get("source_gr") or item.get("gr_number") or "")
+                                rel_val = _normalize_rel_name(str(item.get("relation_type") or item.get("relation") or ""))
+                                tgt_val = str(item.get("target_gr") or item.get("supersedes") or item.get("amends") or item.get("revokes") or "")
+                                if src_val and tgt_val:
+                                    claimed_relations.append({
+                                        "source": src_val,
+                                        "relation": rel_val,
+                                        "target": tgt_val,
+                                    })
+
+                # Extract relations from text response
+                response_text = chat_res.response or ""
+                text_relations = _extract_relations_from_text(response_text)
+                for tr in text_relations:
+                    if tr not in claimed_relations:
+                        claimed_relations.append(tr)
+
+                for cr in claimed_relations:
+                    if cr not in all_claimed_relations:
+                        all_claimed_relations.append(cr)
+
+                # Evaluate direction and correctness against ground truth
                 classification = "missing_relation"
                 actual_dir = "none"
                 is_correct = False
@@ -113,16 +192,42 @@ async def handle_check_lineage_correctness(
                     c_tgt = cr.get("target", "")
                     c_rel = cr.get("relation", "")
 
-                    if (c_src == gt_gr and c_tgt == gt_target) or (gt_gr in response_text and gt_target in response_text and gt_rel in c_rel):
-                        classification = "exact_match"
-                        actual_dir = f"{c_src} {c_rel} {c_tgt}"
-                        is_correct = True
-                        break
+                    if c_src == gt_gr and c_tgt == gt_target:
+                        if c_rel == gt_rel:
+                            classification = "exact_match"
+                            actual_dir = f"{c_src} {c_rel} {c_tgt}"
+                            is_correct = True
+                            break
+                        else:
+                            classification = "wrong_relation_type"
+                            actual_dir = f"{c_src} {c_rel} {c_tgt}"
+                            is_correct = False
+                            break
                     elif c_src == gt_target and c_tgt == gt_gr:
-                        classification = "reversed_direction"  # Dangerous error
+                        classification = "reversed_direction"  # Dangerous lineage reversal
                         actual_dir = f"{c_src} {c_rel} {c_tgt}"
                         is_correct = False
                         break
+
+                # Fallback check if response text directly asserts the relation
+                if not is_correct and classification == "missing_relation":
+                    if gt_gr in response_text and gt_target in response_text:
+                        if any(kw in response_text.lower() for kw in ("supersede", "अधिक्रमित")) and gt_rel == "supersedes":
+                            # Verify ordering in text
+                            idx_src = response_text.find(gt_gr)
+                            idx_tgt = response_text.find(gt_target)
+                            if idx_src < idx_tgt or "superseded by" not in response_text.lower():
+                                classification = "exact_match"
+                                actual_dir = f"{gt_gr} supersedes {gt_target}"
+                                is_correct = True
+                        elif any(kw in response_text.lower() for kw in ("amend", "सुधारणा")) and gt_rel == "amends":
+                            classification = "exact_match"
+                            actual_dir = f"{gt_gr} amends {gt_target}"
+                            is_correct = True
+                        elif any(kw in response_text.lower() for kw in ("revoke", "रद्द")) and gt_rel == "revokes":
+                            classification = "exact_match"
+                            actual_dir = f"{gt_gr} revokes {gt_target}"
+                            is_correct = True
 
                 eval_results.append({
                     "gr_number": gt_gr,
@@ -151,20 +256,20 @@ async def handle_check_lineage_correctness(
                         now_iso,
                     ),
                 )
+
+                # Optional document fetch verification
+                if verify_document_storage and chat_res.sources and doc_verification is None:
+                    first_fp = chat_res.sources[0].get("filepath") or chat_res.sources[0].get("filename")
+                    if first_fp:
+                        doc_res = await fetch_document(first_fp)
+                        doc_verification = {
+                            "filepath": first_fp,
+                            "storage_ok": doc_res.ok,
+                            "extracted_text_preview": (doc_res.extracted_text or "")[:200] if doc_res.ok else None,
+                            "error": doc_res.error if not doc_res.ok else None,
+                        }
         finally:
             await conn.close()
-
-        # Optional document fetch verification via storage endpoint
-        doc_verification = None
-        if verify_document_storage and chat_res.sources:
-            first_fp = chat_res.sources[0].get("filepath")
-            if first_fp:
-                doc_res = await fetch_document(first_fp)
-                doc_verification = {
-                    "filepath": first_fp,
-                    "storage_ok": doc_res.ok,
-                    "extracted_text_preview": (doc_res.extracted_text or "")[:200] if doc_res.ok else None,
-                }
 
         correct_count = sum(1 for r in eval_results if r["correct"])
         total_checks = len(eval_results)
@@ -177,7 +282,7 @@ async def handle_check_lineage_correctness(
             "correct_count": correct_count,
             "lineage_accuracy_pct": round(accuracy, 2),
             "eval_results": eval_results,
-            "claimed_relations": claimed_relations,
+            "claimed_relations": all_claimed_relations,
             "document_verification": doc_verification,
         }
 
@@ -191,9 +296,4 @@ def register(mcp: MCPServer) -> None:
     mcp.tool(
         name="aieval.check_lineage_correctness",
         description="Verify correctness and direction of GR supersessions/amendments against hand-verified ground truth.",
-    )(handle_check_lineage_correctness)
-
-    mcp.tool(
-        name="check_lineage_correctness",
-        description="Backwards-compatible alias for aieval.check_lineage_correctness.",
     )(handle_check_lineage_correctness)

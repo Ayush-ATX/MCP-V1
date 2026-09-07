@@ -11,12 +11,11 @@ from server import mcp
 
 
 @pytest.mark.asyncio
-async def test_all_eight_tool_namespaces_registered():
-    """Verify that all 8 required tool namespaces are registered on the unified MCP server."""
+async def test_all_twelve_canonical_tools_registered():
+    """Verify that exactly 12 canonical tools across all 8 domains are registered on the unified MCP server."""
     tool_names = set(mcp._tool_manager._tools.keys())
 
-    # Namespaced tool identifiers
-    expected_namespaced_tools = [
+    expected_canonical_tools = [
         "observability.query_and_log",
         "observability.get_dashboard_stats",
         "observability.list_recent_queries",
@@ -31,19 +30,21 @@ async def test_all_eight_tool_namespaces_registered():
         "aieval.check_corpus_web_precedence",
     ]
 
-    for tool_name in expected_namespaced_tools:
-        assert tool_name in tool_names, f"Expected tool '{tool_name}' not registered on server"
+    assert len(tool_names) == 12, f"Expected exactly 12 tools, but found {len(tool_names)}: {sorted(tool_names)}"
+    for tool_name in expected_canonical_tools:
+        assert tool_name in tool_names, f"Expected canonical tool '{tool_name}' not registered on server"
 
 
 @pytest.mark.asyncio
-async def test_backward_compatible_tool_aliases_registered():
-    """Verify that backward-compatible tool aliases are registered on the unified MCP server."""
+async def test_duplicate_and_unnamespaced_aliases_not_registered():
+    """Verify that removed duplicate aliases are NOT registered on the unified MCP server."""
     tool_names = set(mcp._tool_manager._tools.keys())
 
-    expected_aliases = [
+    removed_aliases = [
         "query_and_log",
         "get_dashboard_stats",
         "list_recent_queries",
+        "grounding.score_grounding",
         "score_grounding",
         "grounding_trend",
         "generate_paraphrases",
@@ -55,8 +56,8 @@ async def test_backward_compatible_tool_aliases_registered():
         "check_corpus_web_precedence",
     ]
 
-    for alias in expected_aliases:
-        assert alias in tool_names, f"Expected alias '{alias}' not registered on server"
+    for alias in removed_aliases:
+        assert alias not in tool_names, f"Removed alias '{alias}' should not be registered on server"
 
 
 @pytest.mark.asyncio

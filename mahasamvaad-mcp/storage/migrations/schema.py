@@ -177,31 +177,103 @@ async def migrate_legacy_db(target_conn: aiosqlite.Connection, legacy_db_path: s
         legacy_conn = await aiosqlite.connect(str(legacy_file))
         legacy_conn.row_factory = aiosqlite.Row
         try:
-            # Check if query_log table exists in legacy
+            # 1. Check if query_log table exists in legacy
             tables_cursor = await legacy_conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='query_log'")
             if await tables_cursor.fetchone():
                 rows = await legacy_conn.execute_fetchall("SELECT * FROM query_log")
                 for r in rows:
+                    msg_id = r["message_id"]
+                    if msg_id:
+                        exists = await target_conn.execute_fetchall("SELECT 1 FROM query_log WHERE message_id = ?", (msg_id,))
+                        if exists:
+                            continue
+                    else:
+                        exists = await target_conn.execute_fetchall(
+                            "SELECT 1 FROM query_log WHERE called_at = ? AND message = ?",
+                            (r["called_at"], r["message"]),
+                        )
+                        if exists:
+                            continue
+
                     cols = [k for k in r.keys() if k != "id"]
                     placeholders = ", ".join("?" for _ in cols)
                     col_names = ", ".join(cols)
                     values = [r[c] for c in cols]
                     await target_conn.execute(
-                        f"INSERT OR IGNORE INTO query_log ({col_names}) VALUES ({placeholders})",
+                        f"INSERT INTO query_log ({col_names}) VALUES ({placeholders})",
                         values,
                     )
 
-            # Check grounding_scores
+            # 2. Check grounding_scores
             g_cursor = await legacy_conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='grounding_scores'")
             if await g_cursor.fetchone():
                 rows = await legacy_conn.execute_fetchall("SELECT * FROM grounding_scores")
                 for r in rows:
+                    msg_id = r["message_id"]
+                    scored_at = r["scored_at"]
+                    if msg_id:
+                        exists = await target_conn.execute_fetchall(
+                            "SELECT 1 FROM grounding_scores WHERE message_id = ? AND scored_at = ?",
+                            (msg_id, scored_at),
+                        )
+                        if exists:
+                            continue
                     cols = [k for k in r.keys() if k != "id"]
                     placeholders = ", ".join("?" for _ in cols)
                     col_names = ", ".join(cols)
                     values = [r[c] for c in cols]
                     await target_conn.execute(
-                        f"INSERT OR IGNORE INTO grounding_scores ({col_names}) VALUES ({placeholders})",
+                        f"INSERT INTO grounding_scores ({col_names}) VALUES ({placeholders})",
+                        values,
+                    )
+
+            # 3. Check reformulation_runs
+            r_cursor = await legacy_conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='reformulation_runs'")
+            if await r_cursor.fetchone():
+                rows = await legacy_conn.execute_fetchall("SELECT * FROM reformulation_runs")
+                for r in rows:
+                    run_at = r["run_at"]
+                    orig_q = r["original_query"]
+                    exists = await target_conn.execute_fetchall(
+                        "SELECT 1 FROM reformulation_runs WHERE run_at = ? AND original_query = ?",
+                        (run_at, orig_q),
+                    )
+                    if exists:
+                        continue
+                    cols = [k for k in r.keys() if k != "id"]
+                    placeholders = ", ".join("?" for _ in cols)
+                    col_names = ", ".join(cols)
+                    values = [r[c] for c in cols]
+                    await target_conn.execute(
+                        f"INSERT INTO reformulation_runs ({col_names}) VALUES ({placeholders})",
+                        values,
+                    )
+
+            # 4. Check reformulation_variants
+            v_cursor = await legacy_conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='reformulation_variants'")
+            if await v_cursor.fetchone():
+                rows = await legacy_conn.execute_fetchall("SELECT * FROM reformulation_variants")
+                for r in rows:
+                    var_text = r["variant_text"]
+                    msg_id = r["message_id"]
+                    if msg_id:
+                        exists = await target_conn.execute_fetchall(
+                            "SELECT 1 FROM reformulation_variants WHERE variant_text = ? AND message_id = ?",
+                            (var_text, msg_id),
+                        )
+                    else:
+                        exists = await target_conn.execute_fetchall(
+                            "SELECT 1 FROM reformulation_variants WHERE variant_text = ? AND message_id IS NULL",
+                            (var_text,),
+                        )
+                    if exists:
+                        continue
+                    cols = [k for k in r.keys() if k != "id"]
+                    placeholders = ", ".join("?" for _ in cols)
+                    col_names = ", ".join(cols)
+                    values = [r[c] for c in cols]
+                    await target_conn.execute(
+                        f"INSERT INTO reformulation_variants ({col_names}) VALUES ({placeholders})",
                         values,
                     )
 

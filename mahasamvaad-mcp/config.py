@@ -44,7 +44,7 @@ class Settings(BaseSettings):
     # --- LLM-as-judge (NVIDIA-hosted) ---
     LLM_JUDGE_BASE_URL: str = Field(default="https://integrate.api.nvidia.com/v1")
     LLM_JUDGE_API_KEY: str = Field(default="")
-    LLM_JUDGE_MODEL: str = Field(default="moonshotai/kimi-k3")
+    LLM_JUDGE_MODEL: str = Field(default="nvidia/nemotron-3.5-lightning-30b-a3b")
 
     # --- Reformulation model ---
     REFORMULATION_BASE_URL: str = Field(default="https://integrate.api.nvidia.com/v1")
